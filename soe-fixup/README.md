@@ -16,8 +16,10 @@ script into `\\10.56.N.1\c$\Temp\soefix\`, and on the SOE you type one line.
   `generatekvs.exe` 2025 build + `jre-7u1-windows-x64.exe`), `static_unc`
   (how RHS02 sees that folder through RDP drive redirection) and optionally
   `results_log`. `~` is expanded. See `soefix.example.toml`.
-- Mac: `psm` (in `~/.zshrc`) redirects `static_dir` into the session as
-  `\\tsclient\SOE_Static_Files`; `soefix` alias -> `soefix.py` (uv script).
+- Mac: `psm` (in `~/.zshrc`) redirects `static_dir` into the session; through
+  PSM it appears as a drive letter (`\\tsclient\Z`) rather than by name - check
+  with `Get-ChildItem \\tsclient` and set `static_unc` accordingly. `soefix`
+  alias -> `soefix.py` (uv script).
 - Windows: see *Running from Windows* below.
 
 ## Conversion flow (new store), e.g. site 202 Greenlane
