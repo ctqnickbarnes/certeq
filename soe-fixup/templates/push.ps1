@@ -51,7 +51,8 @@ if (Test-Path (Join-Path $stat 'generatekvs.exe')) {
 } else {
     # configured share missing (old psm function? mstsc without drive redirection?) - look at what IS redirected
     $shares = @()
-    try { $shares = @((net view \\tsclient 2>$null) | Select-String -Pattern '^(\S+)\s+Disk' | ForEach-Object { $_.Matches[0].Groups[1].Value }) } catch { }
+    # \\tsclient is the RDP redirector, not an SMB server: 'net view' fails (1707) but a directory listing works
+    try { $shares = @(Get-ChildItem '\\\\tsclient' -ErrorAction Stop | ForEach-Object { $_.Name }) } catch { }
     $found = $null
     foreach ($s in $shares) {
         foreach ($cand in @("\\\\tsclient\$s", "\\\\tsclient\$s\SOE_Static_Files", "\\\\tsclient\$s\Certeq\SOE_Static_Files", "\\\\tsclient\$s\Documents\Certeq\SOE_Static_Files")) {
