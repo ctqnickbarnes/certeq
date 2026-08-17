@@ -11,10 +11,14 @@ def test_derive():
     assert soefix.derive(27) == {"site": 27, "ip_rhs": "10.56.27.93", "ip_soe": "10.56.27.1"}
 
 
-def test_derive_ip_override(monkeypatch):
+def test_derive_ip_override(monkeypatch, tmp_path):
+    monkeypatch.setattr(soefix, "SITES", tmp_path / "sites.json")
     monkeypatch.setattr(soefix, "IP_OVERRIDE", "10.56.55.1")
     assert soefix.derive(310) == {"site": 310, "ip_rhs": "10.56.55.93", "ip_soe": "10.56.55.1"}
+    # remembered: later commands without --ip still resolve
     monkeypatch.setattr(soefix, "IP_OVERRIDE", None)
+    assert soefix.derive(310)["ip_soe"] == "10.56.55.1"
+    (tmp_path / "sites.json").unlink()
     with pytest.raises(SystemExit):
         soefix.derive(310)
     monkeypatch.setattr(soefix, "IP_OVERRIDE", "10.56.55")

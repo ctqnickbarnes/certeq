@@ -23,7 +23,7 @@ ac:
 
 Options: --name "Store Name" (when N is not in the sheet), --force (ignore Done in the sheet),
          --ip 10.56.55.1 (SOE address when the third octet is not the site number, e.g. sites > 255;
-         RHS02 is taken as .93 on the same subnet).
+         RHS02 is taken as .93 on the same subnet; remembered per site in sites.json).
 Paths (sheet, static folder, its tsclient UNC, results log) come from soefix.toml next to
 this file - see soefix.example.toml. Works on macOS and Windows (uv + pyperclip).
 
@@ -32,6 +32,7 @@ external workbook - Excel only stores the value cached at last save, so we add t
 elapsed since the file was modified.
 """
 
+import json
 import re
 import sys
 import tomllib
@@ -136,17 +137,37 @@ def store_info(site: int, name: str | None) -> dict:
 
 # --------------------------------------------------------------------------- rendering
 IP_OVERRIDE: str | None = None  # --ip 10.56.55.1 (sites whose third octet is not the site number)
+SITES = HERE / "sites.json"     # remembered --ip per site (local, git-ignored)
+
+
+def _sites() -> dict:
+    if SITES.exists():
+        try:
+            return json.loads(SITES.read_text())
+        except ValueError:
+            return {}
+    return {}
+
+
+def remember_ip(site: int, ip: str) -> None:
+    d = _sites()
+    if d.get(str(site)) != ip:
+        d[str(site)] = ip
+        SITES.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n")
 
 
 def derive(site: int) -> dict:
-    if IP_OVERRIDE:
-        parts = IP_OVERRIDE.split(".")
+    ip = IP_OVERRIDE or _sites().get(str(site))
+    if ip:
+        parts = ip.split(".")
         if len(parts) != 4 or not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
-            die(f"--ip must be a full IPv4 address like 10.56.55.1, got {IP_OVERRIDE!r}")
+            die(f"--ip must be a full IPv4 address like 10.56.55.1, got {ip!r}")
+        if IP_OVERRIDE:
+            remember_ip(site, ip)
         net = ".".join(parts[:3])
     else:
         if site > 255:
-            die(f"site {site} can't be the third octet of the IP - pass the SOE address, e.g. --ip 10.56.55.1")
+            die(f"site {site} can't be the third octet of the IP - pass the SOE address once, e.g. --ip 10.56.55.1 (remembered in {SITES.name})")
         net = f"10.56.{site}"
     return {"site": site, "ip_rhs": f"{net}.93", "ip_soe": f"{net}.1"}
 

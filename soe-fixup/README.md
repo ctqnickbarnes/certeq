@@ -44,7 +44,8 @@ Two pastes to wait on (2, 5), one typed line on the SOE (6); every step prints
 `[PASS]/[FAIL]` and never aborts, so read the summary before moving on.
 
 Sites above 255 (e.g. 310) can't use `10.56.<site>.x` - pass the SOE address:
-`soefix push 310 --ip 10.56.55.1 ...` (RHS02 is assumed to be `.93` on that subnet); same for `verify`.
+`soefix push 310 --ip 10.56.55.1 ...` (RHS02 is assumed to be `.93` on that subnet). It's remembered
+in a local `sites.json`, so `verify 310` etc. don't need it again.
 
 `--driver` takes a folder name under `X:\Certeq` (e.g. `"Printer Drivers\Epson TM-T88V"`),
 a path under `X:\`, or a full `X:\...` / UNC path; the SOE gets it as `C:\Temp\<last folder>`.

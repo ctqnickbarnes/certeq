@@ -6,3 +6,4 @@ __pycache__/
 # per-machine config and local run data
 soefix.toml
 results.log
+sites.json
