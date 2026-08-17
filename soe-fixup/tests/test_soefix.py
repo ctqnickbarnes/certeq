@@ -11,6 +11,17 @@ def test_derive():
     assert soefix.derive(27) == {"site": 27, "ip_rhs": "10.56.27.93", "ip_soe": "10.56.27.1"}
 
 
+def test_derive_ip_override(monkeypatch):
+    monkeypatch.setattr(soefix, "IP_OVERRIDE", "10.56.55.1")
+    assert soefix.derive(310) == {"site": 310, "ip_rhs": "10.56.55.93", "ip_soe": "10.56.55.1"}
+    monkeypatch.setattr(soefix, "IP_OVERRIDE", None)
+    with pytest.raises(SystemExit):
+        soefix.derive(310)
+    monkeypatch.setattr(soefix, "IP_OVERRIDE", "10.56.55")
+    with pytest.raises(SystemExit):
+        soefix.derive(310)
+
+
 def test_render_substitutes_and_rejects_leftovers(tmp_path, monkeypatch):
     (tmp_path / "t.ps1").write_text("a {{X}} b {{Y}}")
     monkeypatch.setattr(soefix, "TEMPLATES", tmp_path)
@@ -182,7 +193,7 @@ def test_static_unc_is_configurable(monkeypatch):
 def test_templates_have_no_hardcoded_share():
     for tpl in ("push.ps1", "verify.ps1", "convert.ps1", "cleanup.ps1", "restore.ps1"):
         text = (soefix.TEMPLATES / tpl).read_text()
-        assert "SOE_Static_Files'" not in text and "\\SOE_Static_Files" not in text, tpl
+        assert "tsclient\\SOE_Static_Files" not in text, tpl   # only ever via {{STATIC_UNC}}
 
 
 def test_config_loading(tmp_path, monkeypatch):

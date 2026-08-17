@@ -46,8 +46,28 @@ $cOk = Test-Path $c
 $eOk = Test-Path $e
 if ($cOk) { $lines += "[PASS] Share c`$:      $c" } else { $lines += "[FAIL] Share c`$:      cannot open $c" }
 if ($eOk) { $lines += "[PASS] Share e`$:      $e" } else { $lines += "[FAIL] Share e`$:      cannot open $e" }
-if (-not (Test-Path $stat)) { $lines += "[FAIL] tsclient:      $stat not visible - reconnect with drive redirection on (psm / mstsc Local Resources > Drives)" }
-else                        { $lines += "[PASS] tsclient:      $stat" }
+if (Test-Path (Join-Path $stat 'generatekvs.exe')) {
+    $lines += "[PASS] tsclient:      $stat"
+} else {
+    # configured share missing (old psm function? mstsc without drive redirection?) - look at what IS redirected
+    $shares = @()
+    try { $shares = @((net view \\tsclient 2>$null) | Select-String -Pattern '^(\S+)\s+Disk' | ForEach-Object { $_.Matches[0].Groups[1].Value }) } catch { }
+    $found = $null
+    foreach ($s in $shares) {
+        foreach ($cand in @("\\\\tsclient\$s", "\\\\tsclient\$s\SOE_Static_Files", "\\\\tsclient\$s\Certeq\SOE_Static_Files", "\\\\tsclient\$s\Documents\Certeq\SOE_Static_Files")) {
+            if (Test-Path (Join-Path $cand 'generatekvs.exe')) { $found = $cand; break }
+        }
+        if ($found) { break }
+    }
+    if ($found) {
+        $lines += "[INFO] tsclient:      $stat not visible; using $found instead (fix static_unc in soefix.toml / re-source .zshrc)"
+        $stat = $found
+    } elseif ($shares.Count -gt 0) {
+        $lines += "[FAIL] tsclient:      $stat not visible; redirected shares here: $($shares -join ', ') - none has generatekvs.exe (reconnect: source ~/.zshrc then psm)"
+    } else {
+        $lines += "[FAIL] tsclient:      no \\\\tsclient shares at all - reconnect with drive redirection on (psm / mstsc Local Resources > Drives)"
+    }
+}
 
 if ($cOk) {
     # --- 1. drop the SOE script + launcher ------------------------------------
@@ -106,7 +126,11 @@ if ($cOk) {
                 }
                 $leaf = Split-Path $dsrc -Leaf
                 if (-not (Test-Path $dsrc)) {
-                    $lines += "[FAIL] Driver:        $dsrc not found - see the folder list from soefix restore"
+                    $lines += "[FAIL] Driver:        $dsrc not found. Folders under $x\Certeq:"
+                    foreach ($d in @(Get-ChildItem (Join-Path $x 'Certeq') -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | Sort-Object Name)) {
+                        $lines += "        $($d.Name)"
+                        foreach ($s in @(Get-ChildItem $d.FullName -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | Sort-Object Name)) { $lines += "            $($d.Name)\$($s.Name)" }
+                    }
                 } else {
                     try {
                         Copy-Item $dsrc (Join-Path $c 'Temp') -Recurse -Force

@@ -21,7 +21,9 @@ ac:
   soefix log N <note>                  manual entry;  soefix log  (no args) = clipboard mode
   soefix list                          pending stores from the sheet with corrected day counts
 
-Options: --name "Store Name" (when N is not in the sheet), --force (ignore Done in the sheet).
+Options: --name "Store Name" (when N is not in the sheet), --force (ignore Done in the sheet),
+         --ip 10.56.55.1 (SOE address when the third octet is not the site number, e.g. sites > 255;
+         RHS02 is taken as .93 on the same subnet).
 Paths (sheet, static folder, its tsclient UNC, results log) come from soefix.toml next to
 this file - see soefix.example.toml. Works on macOS and Windows (uv + pyperclip).
 
@@ -133,8 +135,20 @@ def store_info(site: int, name: str | None) -> dict:
 
 
 # --------------------------------------------------------------------------- rendering
+IP_OVERRIDE: str | None = None  # --ip 10.56.55.1 (sites whose third octet is not the site number)
+
+
 def derive(site: int) -> dict:
-    return {"site": site, "ip_rhs": f"10.56.{site}.93", "ip_soe": f"10.56.{site}.1"}
+    if IP_OVERRIDE:
+        parts = IP_OVERRIDE.split(".")
+        if len(parts) != 4 or not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+            die(f"--ip must be a full IPv4 address like 10.56.55.1, got {IP_OVERRIDE!r}")
+        net = ".".join(parts[:3])
+    else:
+        if site > 255:
+            die(f"site {site} can't be the third octet of the IP - pass the SOE address, e.g. --ip 10.56.55.1")
+        net = f"10.56.{site}"
+    return {"site": site, "ip_rhs": f"{net}.93", "ip_soe": f"{net}.1"}
 
 
 def ps_quote(s: str) -> str:
@@ -311,6 +325,7 @@ def main() -> None:
     driver = ""
     name = None
     rest = []
+    global IP_OVERRIDE
     it = iter(argv)
     for a in it:
         if a in ("--force", "--cleanup"):
@@ -323,6 +338,10 @@ def main() -> None:
             name = next(it, None)
         elif a.startswith("--name="):
             name = a.split("=", 1)[1]
+        elif a == "--ip":
+            IP_OVERRIDE = next(it, None)
+        elif a.startswith("--ip="):
+            IP_OVERRIDE = a.split("=", 1)[1]
         else:
             rest.append(a)
     if not rest:
