@@ -1,0 +1,20 @@
+[project]
+name = "certeq-mail"
+version = "0.1.0"
+description = "Certeq KVS1 deployment emails — Mac port of the Outlook VBA macro suite"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27",
+    "keyring>=25",
+]
+
+[project.scripts]
+certeq = "certeq_mail.cli:main"
+certeq-gui = "certeq_mail.gui:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/certeq_mail"]
