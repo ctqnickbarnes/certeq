@@ -65,7 +65,7 @@ if (Test-Path (Join-Path $stat 'generatekvs.exe')) {
     } elseif ($shares.Count -gt 0) {
         $lines += "[FAIL] tsclient:      $stat not visible; redirected shares here: $($shares -join ', ') - none has generatekvs.exe (reconnect: source ~/.zshrc then psm)"
     } else {
-        $lines += "[FAIL] tsclient:      no \\\\tsclient shares at all - reconnect with drive redirection on (psm / mstsc Local Resources > Drives)"
+        $lines += "[FAIL] tsclient:      no \\tsclient shares in this session - reconnect with drive redirection on (Mac: 'type psm' must show /drive:SOE_Static_Files, then a fresh psm; Windows: mstsc Local Resources > Drives)"
     }
 }
 
