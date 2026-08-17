@@ -1,0 +1,7 @@
+# Copy to soefix.toml next to soefix.py and edit. Windows example values:
+sheet      = "C:/Users/you/OneDrive/Certeq/VM SOE Clean Up.xlsx"
+static_dir = "C:/Users/you/Certeq/SOE_Static_Files"
+# mstsc: Show Options > Local Resources > More... > Drives (tick C:) before connecting,
+# then the folder above is visible on RHS02 as:
+static_unc = "\\\\tsclient\\C\\Users\\you\\Certeq\\SOE_Static_Files"
+# results_log = "C:/Users/you/Certeq/soefix-results.log"

@@ -1,0 +1,8 @@
+/docs/
+__pycache__/
+.pytest_cache/
+.venv/
+.DS_Store
+# per-machine config and local run data
+soefix.toml
+results.log
