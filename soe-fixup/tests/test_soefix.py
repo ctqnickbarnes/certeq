@@ -132,7 +132,7 @@ def test_bake_push_convert(monkeypatch):
     assert first_code_line(p) == "& {"
     assert "10.56.202.1" in p and "convert.ps1" in p and "Maxtel" in p
     assert "Greenlane" in p and "'Epson TM'" in p
-    assert "\\\\tsclient\\SOE_Static_Files" in p
+    assert f"$stat     = '{soefix.STATIC_UNC}'" in p   # whatever soefix.toml says
     assert "Read-Host" in p          # inside the embedded SOE script only
     assert p.count("@'") == 2 and p.count("\n'@") == 2   # two here-strings, cleanly closed
     # embedded go.cmd targets the right script
