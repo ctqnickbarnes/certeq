@@ -86,9 +86,10 @@ def test_bake_soe_convert():
     assert "'Epson TM'" in s and "Test''s Store" in s
     assert "/auto" not in s  # never recollect on a conversion
     soefix.check_embeddable(s)
+    assert "Which to run?" in s   # multiple self-extracting packages -> pick
     # without --driver the step is still there, just manual - same pause
     s2 = soefix.bake_soe("convert", INFO, "", "10.56.27.93")
-    assert "done by hand" in s2 and "[SKIP] Driver" not in s2 and s2.count("Read-Host") == 2
+    assert "done by hand" in s2 and "[SKIP] Driver" not in s2
 
 
 def test_convert_driver_uses_leaf_name():

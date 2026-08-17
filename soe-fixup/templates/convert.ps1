@@ -52,18 +52,38 @@ if (-not $driver) {
     } else {
         $infs = @(Get-ChildItem $dd -Filter '*.inf' -ErrorAction SilentlyContinue | Sort-Object Name)
         if ($infs.Count -eq 0) {
-            # nothing at top level: expand archives / run a lone self-extractor, then look again
+            # nothing at top level: the folder holds packages - expand zips, run the self-extracting exe(s)
             $zips = @(Get-ChildItem $dd -Filter '*.zip' -ErrorAction SilentlyContinue)
             foreach ($z in $zips) {
                 Write-Host "Expanding $($z.Name)..." -ForegroundColor Yellow
                 try { Expand-Archive -Path $z.FullName -DestinationPath $dd -Force } catch { Write-Host $_.Exception.Message -ForegroundColor Red }
             }
-            $exes = @(Get-ChildItem $dd -Filter '*.exe' -ErrorAction SilentlyContinue)
-            if ($zips.Count -eq 0 -and $exes.Count -eq 1) {
-                Write-Host "No .inf found - running $($exes[0].Name) (extract into $dd if it asks)..." -ForegroundColor Yellow
-                try { Start-Process -FilePath $exes[0].FullName -Wait } catch { Write-Host $_.Exception.Message -ForegroundColor Red }
+            $exes = @(Get-ChildItem $dd -Filter '*.exe' -ErrorAction SilentlyContinue | Sort-Object Name)
+            if ($exes.Count -gt 0) {
+                $pick = @($exes[0])
+                if ($exes.Count -gt 1) {
+                    Write-Host ''
+                    Write-Host "Driver packages in $dd (self-extracting):" -ForegroundColor Cyan
+                    for ($i = 0; $i -lt $exes.Count; $i++) { Write-Host ("  [{0}] {1}" -f ($i + 1), $exes[$i].Name) }
+                    $ans = Read-Host 'Which to run? number, comma-separated for several (Enter = 1)'
+                    if ($ans -and $ans.Trim()) {
+                        $pick = @()
+                        foreach ($n in ($ans -split '[,\s]+')) {
+                            if ($n -match '^\d+$' -and [int]$n -ge 1 -and [int]$n -le $exes.Count) { $pick += $exes[[int]$n - 1] }
+                        }
+                        if ($pick.Count -eq 0) { $pick = @($exes[0]) }
+                    }
+                }
+                foreach ($x in $pick) {
+                    Write-Host "Running $($x.Name) - if it asks where to extract, choose $dd ..." -ForegroundColor Yellow
+                    try { Start-Process -FilePath $x.FullName -WorkingDirectory $dd -Wait } catch { Write-Host $_.Exception.Message -ForegroundColor Red }
+                }
             }
             $infs = @(Get-ChildItem $dd -Filter '*.inf' -Recurse -ErrorAction SilentlyContinue | Sort-Object Name)
+            if ($infs.Count -eq 0) {
+                $ans = Read-Host "No .inf found under $dd - folder where the package extracted (Enter to skip)"
+                if ($ans -and (Test-Path $ans)) { $infs = @(Get-ChildItem $ans -Filter '*.inf' -Recurse -ErrorAction SilentlyContinue | Sort-Object Name) }
+            }
         }
         if ($infs.Count -eq 0) {
             $lines += "[FAIL] Driver:        no .inf in $dd (even after extract)"
