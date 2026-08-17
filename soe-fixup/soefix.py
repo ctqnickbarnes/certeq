@@ -10,6 +10,7 @@ Everything is derived from the site number N: RHS02 = 10.56.N.93, VM SOE = 10.56
 Paste on RHS02 (the PSM session):
   soefix restore N                     copy X:\\SOE_Backup, run the Server2022 restore, list drivers
   soefix push N --driver "<folder>"    stage convert.ps1 + Maxtel + driver + generatekvs/JRE onto the SOE
+                                       (<folder> = name under X:\\Certeq, e.g. "Printer Drivers\\Epson", or a full X:\\ path)
   soefix push N --cleanup              stage cleanup.ps1 (+ generatekvs) on an already-converted SOE
   soefix verify N                      post-reboot checks over c$, pull the summary back to the Mac
 
@@ -165,7 +166,9 @@ def bake_soe(mode: str, info: dict, driver: str, ip_rhs: str) -> str:
     """Render the script that runs ON the SOE (convert.ps1 or cleanup.ps1)."""
     common = dict(SITE=info["site"], NAME=ps_quote(info["name"]), REF=ps_quote(str(info["ref"])))
     if mode == "convert":
-        return render("convert.ps1", DRIVER=ps_quote(driver), IP_RHS=ip_rhs, **common)
+        # the SOE only ever sees C:\Temp\<leaf>, whatever form --driver took
+        leaf = driver.replace("/", "\\").rstrip("\\").split("\\")[-1]
+        return render("convert.ps1", DRIVER=ps_quote(leaf), IP_RHS=ip_rhs, **common)
     if mode == "cleanup":
         if not isinstance(info["days"], (int, float)):
             raise ValueError("cleanup mode needs a day count from the sheet (Days Since Completion is empty)")

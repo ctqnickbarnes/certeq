@@ -41,6 +41,10 @@ and open the PSM `.rdp` in mstsc with *Local Resources > Drives* ticked.
 Two pastes to wait on (2, 5), one typed line on the SOE (6); every step prints
 `[PASS]/[FAIL]` and never aborts, so read the summary before moving on.
 
+`--driver` takes a folder name under `X:\Certeq` (e.g. `"Printer Drivers\Epson TM-T88V"`),
+a path under `X:\`, or a full `X:\...` / UNC path; the SOE gets it as `C:\Temp\<last folder>`.
+`soefix restore` prints the folder list two levels deep so you can copy the name.
+
 Driver by hand (step 6 without `--driver`): when the script pauses, browse
 `\\10.56.N.93\x$\Certeq` from the SOE and copy the printer's driver folder to
 `C:\Temp` (extract if needed); in the printui window it opened: Drivers > Add >

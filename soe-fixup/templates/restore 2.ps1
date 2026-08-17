@@ -67,12 +67,8 @@ if (-not $x) {
     $certeq = Join-Path $x 'Certeq'
     if (Test-Path $certeq) {
         $dirs = @(Get-ChildItem $certeq | Where-Object { $_.PSIsContainer } | Sort-Object Name)
-        $lines += "[INFO] Drivers:       folders under $certeq (use the name, or a subfolder path, with --driver):"
-        foreach ($d in $dirs) {
-            $lines += "        $($d.Name)"
-            $subs = @(Get-ChildItem $d.FullName -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | Sort-Object Name)
-            foreach ($s in $subs) { $lines += "            $($d.Name)\$($s.Name)" }
-        }
+        $lines += "[INFO] Drivers:       $($dirs.Count) folder(s) in $certeq"
+        foreach ($d in $dirs) { $lines += "        $($d.Name)" }
     } else {
         $lines += "[FAIL] Drivers:       $certeq not found"
     }

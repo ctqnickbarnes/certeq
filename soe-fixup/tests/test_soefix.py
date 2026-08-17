@@ -80,6 +80,12 @@ def test_bake_soe_convert():
     assert "done by hand" in s2 and "[SKIP] Driver" not in s2 and s2.count("Read-Host") == 2
 
 
+def test_convert_driver_uses_leaf_name():
+    for given in (r"Printer Drivers\Epson TM", r"X:\Certeq\Printer Drivers\Epson TM", "Printer Drivers/Epson TM/", "Epson TM"):
+        s = soefix.bake_soe("convert", INFO, given, "10.56.27.93")
+        assert "$driver   = 'Epson TM'" in s, given
+
+
 def test_bake_soe_cleanup():
     s = soefix.bake_soe("cleanup", INFO, "", "10.56.27.93")
     assert "{{" not in s

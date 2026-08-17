@@ -90,28 +90,17 @@ if ($cOk) {
             $lines += "[SKIP] Driver:        no --driver given (SOE script will skip the driver step)"
         } else {
             $x = Resolve-X
-            if (-not $x -and $driver -notmatch '^\\\\') {
+            if (-not $x) {
                 $lines += "[FAIL] Driver:        X: not visible here (elevated console?) - paste in a normal PowerShell"
             } else {
-                # --driver may be: a folder under X:\Certeq, a path under X:\, or a full X:\... / UNC path
-                $dsrc = $null
-                if ($driver -match '^[A-Za-z]:\\|^\\\\') {
-                    if ($driver -match '^[Xx]:' -and $x -ne 'X:') { $driver = $x + $driver.Substring(2) }
-                    $dsrc = $driver
-                } else {
-                    foreach ($cand in @((Join-Path (Join-Path $x 'Certeq') $driver), (Join-Path $x $driver))) {
-                        if (Test-Path $cand) { $dsrc = $cand; break }
-                    }
-                    if (-not $dsrc) { $dsrc = Join-Path (Join-Path $x 'Certeq') $driver }
-                }
-                $leaf = Split-Path $dsrc -Leaf
+                $dsrc = Join-Path (Join-Path $x 'Certeq') $driver
                 if (-not (Test-Path $dsrc)) {
-                    $lines += "[FAIL] Driver:        $dsrc not found - see the folder list from soefix restore"
+                    $lines += "[FAIL] Driver:        $dsrc not found (folders: $((Get-ChildItem (Join-Path $x 'Certeq') | Where-Object { $_.PSIsContainer } | ForEach-Object { $_.Name }) -join ', '))"
                 } else {
                     try {
                         Copy-Item $dsrc (Join-Path $c 'Temp') -Recurse -Force
-                        $n = @(Get-ChildItem (Join-Path (Join-Path $c 'Temp') $leaf) -Recurse | Where-Object { -not $_.PSIsContainer }).Count
-                        $lines += "[PASS] Driver:        $dsrc ($n files) copied to SOE C:\Temp\$leaf"
+                        $n = @(Get-ChildItem (Join-Path (Join-Path $c 'Temp') $driver) -Recurse | Where-Object { -not $_.PSIsContainer }).Count
+                        $lines += "[PASS] Driver:        $driver ($n files) copied to SOE C:\Temp\$driver"
                     } catch {
                         $lines += "[FAIL] Driver:        $($_.Exception.Message)"
                     }
