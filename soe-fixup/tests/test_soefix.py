@@ -98,6 +98,13 @@ def test_convert_driver_uses_leaf_name():
         assert "$driver   = 'Epson TM'" in s, given
 
 
+def test_soe_scripts_cannot_elevation_loop():
+    for mode in ("convert", "cleanup"):
+        s = soefix.bake_soe(mode, INFO, "X", "10.56.27.93")
+        assert "SOEFIX_ELEVATED" in s and s.count("-Verb RunAs") == 1
+        assert s.index("$env:SOEFIX_ELEVATED -eq '1'") < s.index("-Verb RunAs")
+
+
 def test_bake_soe_cleanup():
     s = soefix.bake_soe("cleanup", INFO, "", "10.56.27.93")
     assert "{{" not in s

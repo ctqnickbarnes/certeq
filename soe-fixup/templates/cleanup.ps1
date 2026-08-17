@@ -12,6 +12,17 @@ $lines    = @()
 $id = [Security.Principal.WindowsIdentity]::GetCurrent()
 $isAdmin = (New-Object Security.Principal.WindowsPrincipal $id).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
+    if ($env:SOEFIX_ELEVATED -eq '1') {
+        # we ARE the relaunched copy and still not elevated: never spawn again
+        Write-Host 'Still not elevated after a RunAs relaunch - stopping (no more windows).' -ForegroundColor Red
+        Write-Host ("  user: {0}" -f $id.Name) -ForegroundColor Red
+        Write-Host ("  admin group member: {0}" -f (($id.Groups | ForEach-Object { $_.Value }) -contains 'S-1-5-32-544')) -ForegroundColor Red
+        Write-Host '  Log in as a local Administrator, or right-click PowerShell > Run as administrator and run:' -ForegroundColor Yellow
+        Write-Host ("  powershell -NoProfile -ExecutionPolicy Bypass -File ""{0}""" -f $MyInvocation.MyCommand.Path) -ForegroundColor Yellow
+        Read-Host 'Press Enter to close'
+        exit 1
+    }
+    $env:SOEFIX_ELEVATED = '1'
     Start-Process powershell -Verb RunAs -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -NoExit -File "{0}"' -f $MyInvocation.MyCommand.Path)
     exit
 }
