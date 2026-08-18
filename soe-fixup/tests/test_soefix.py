@@ -253,6 +253,15 @@ def test_rhs02_payloads_connect_by_ip_name_or_credentials(monkeypatch):
         assert "{{" not in p
 
 
+def test_soe_scripts_have_beer_progress():
+    for mode, total in (("convert", 7), ("cleanup", 5)):
+        s = soefix.bake_soe(mode, INFO, "X", "10.56.27.93")
+        assert "function Show-Beer" in s and "function Wait-Beer" in s and "Finish-Beer" in s
+        assert f"$script:BeerTotal = {total}" in s
+        assert s.count("Show-Beer '") == total, mode
+        assert "{{" not in s and s.isascii()          # block chars come from [char] codes
+
+
 # ---------------------------------------------------------------- tidy
 def test_bake_tidy(monkeypatch, tmp_path):
     monkeypatch.setattr(soefix, "SITES", tmp_path / "sites.json")

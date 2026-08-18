@@ -28,11 +28,15 @@ if (-not $isAdmin) {
 }
 try { Start-Transcript -Path 'C:\Temp\soefix\transcript.txt' -Append | Out-Null } catch { }
 
+{{BEER}}
+$script:BeerTotal = 5   # desktop exe, PLS, Java, generatekvs + recollect, summary
+
 Write-Host ''
 Write-Host ("SOE fixup - site $site $siteName (ref $refId) - recollect $days days") -ForegroundColor Cyan
 Write-Host ''
 
 # --- 1. Remove SOE_Reboot_eOPS.exe from all user desktops -------------------
+Show-Beer 'Desktop exe'
 $removed = @()
 $failed  = @()
 $desktops = @(Get-ChildItem 'C:\Users' | Where-Object { $_.PSIsContainer } | ForEach-Object { Join-Path $_.FullName 'Desktop' })
@@ -52,12 +56,14 @@ if ($failed.Count -gt 0) {
 }
 
 # --- 2. PLS install (known error popup - click OK when it appears) ----------
+Show-Beer 'PLS install'
 $plsExe = 'C:\Source\Scripts\SOE_PLS_Install.exe'
 if (Test-Path $plsExe) {
     Write-Host 'Running PLS install - CLICK OK on the known error popup...' -ForegroundColor Yellow
     try {
-        $proc = Start-Process -FilePath $plsExe -Wait -PassThru
-        $lines += "[PASS] PLS install:   completed (exit code $($proc.ExitCode))"
+        $proc = Start-Process -FilePath $plsExe -PassThru
+        $rc = Wait-Beer $proc 'PLS install'
+        $lines += "[PASS] PLS install:   completed (exit code $rc)"
     } catch {
         $lines += "[FAIL] PLS install:   $($_.Exception.Message)"
     }
@@ -66,6 +72,7 @@ if (Test-Path $plsExe) {
 }
 
 # --- 3. Java JRE 7u1 silent install -----------------------------------------
+Show-Beer 'Java JRE 7u1'
 $jreExe = 'E:\Ghost Images\Waystation\AppStore\PLS\jre-7u1-windows-x64.exe'
 $javaBin = 'C:\Program Files\Java\jre7\bin\java.exe'
 if (Test-Path $javaBin) {
@@ -73,7 +80,8 @@ if (Test-Path $javaBin) {
 } elseif (Test-Path $jreExe) {
     Write-Host 'Installing Java JRE 7u1 (silent)...'
     try {
-        Start-Process -FilePath $jreExe -ArgumentList '/s' -Wait
+        $jp = Start-Process -FilePath $jreExe -ArgumentList '/s' -PassThru
+        Wait-Beer $jp 'Java JRE 7u1' | Out-Null
         if (Test-Path $javaBin) {
             $lines += "[PASS] Java JRE 7u1:  installed, verified at $javaBin"
         } else {
@@ -87,6 +95,7 @@ if (Test-Path $javaBin) {
 }
 
 # --- 4. generatekvs version check + recollect --------------------------------
+Show-Beer 'generatekvs + recollect'
 $gk = 'C:\Helpdesk\tools\generatekvs.exe'
 if (-not (Test-Path $gk)) {
     $lines += "[FAIL] generatekvs:   not found at $gk"
@@ -95,11 +104,9 @@ if (-not (Test-Path $gk)) {
     $gkDate = (Get-Item $gk).LastWriteTime
     if ($gkDate.Year -ge 2025) {
         $lines += "[PASS] generatekvs:   $($gkDate.ToString('dd/MM/yyyy')) build present"
-        Write-Host "Running recollect: generatekvs.exe /auto $days (this can take a while)..."
-        Push-Location 'C:\Helpdesk\tools'
-        & $gk /auto $days
-        $gkExit = $LASTEXITCODE
-        Pop-Location
+        Write-Host "Running recollect: generatekvs.exe /auto $days in its own window (this can take a while)..."
+        $gp = Start-Process -FilePath $gk -ArgumentList "/auto $days" -WorkingDirectory 'C:\Helpdesk\tools' -PassThru
+        $gkExit = Wait-Beer $gp "recollect /auto $days"
         # eric output folder may land in C:\Helpdesk\eric or next to the exe
         $eric = $null
         foreach ($cand in @('C:\Helpdesk\eric', 'C:\Helpdesk\tools\eric')) {
@@ -118,6 +125,7 @@ if (-not (Test-Path $gk)) {
 }
 
 # --- Summary: print + push to shared RDP clipboard ---------------------------
+Show-Beer 'Summary'
 $stamp  = Get-Date -Format 'yyyy-MM-dd HH:mm'
 $header = "==== SOE FIXUP SUMMARY - site $site $siteName (ref $refId) - $env:COMPUTERNAME - $stamp ===="
 $summary = ($header, ($lines -join "`r`n")) -join "`r`n"
@@ -132,4 +140,5 @@ try { $summary | Out-File -FilePath 'C:\Temp\soefix\summary.txt' -Encoding ASCII
 try { $summary | Out-File -FilePath 'C:\Helpdesk\soe_fixup_summary.txt' -Append -Encoding ASCII } catch { }
 Write-Host ''
 Write-Host 'Summary saved to C:\Temp\soefix\summary.txt (soefix verify pulls it back to the Mac).' -ForegroundColor Cyan
+Finish-Beer 'Cheers - all steps done'
 try { Stop-Transcript | Out-Null } catch { }

@@ -29,16 +29,20 @@ if (-not $isAdmin) {
 }
 try { Start-Transcript -Path (Join-Path $here 'transcript.txt') -Append | Out-Null } catch { }
 
+{{BEER}}
+$script:BeerTotal = 7   # Maxtel, driver, desktop exe, PLS, Java, generatekvs, summary
+
 Write-Host ''
 Write-Host "SOE convert - site $site $siteName (ref $refId) - $env:COMPUTERNAME - $env:USERNAME" -ForegroundColor Cyan
 Write-Host ''
 
 # --- 1. Maxtel ----------------------------------------------------------------
+Show-Beer 'Maxtel'
 $mx = 'E:\Ghost Images\Waystation\AppStore\Maxtel.ps1'
 if (Test-Path $mx) {
-    Write-Host 'Running Maxtel.ps1 - wait for it to complete...' -ForegroundColor Yellow
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $mx
-    $rc = $LASTEXITCODE
+    Write-Host 'Running Maxtel.ps1 in its own window - wait for it to complete...' -ForegroundColor Yellow
+    $mp = Start-Process -FilePath 'powershell.exe' -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File "{0}"' -f $mx) -PassThru
+    $rc = Wait-Beer $mp 'Maxtel'
     if ($rc -eq 0) { $lines += "[PASS] Maxtel:        completed (exit 0)" }
     else           { $lines += "[FAIL] Maxtel:        exit code $rc - check output above" }
 } else {
@@ -47,6 +51,7 @@ if (Test-Path $mx) {
 
 # --- 2. Printer driver: stage + Add Driver via printui ------------------------
 # Whatever happens below, printui is opened and the script pauses so the step can always be finished by hand.
+Show-Beer 'Printer driver'
 $inf = $null
 $driverNote = ''
 if (-not $driver) {
@@ -86,7 +91,10 @@ if (-not $driver) {
                 foreach ($r in $roots) { $before += @(Get-ChildItem $r -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | ForEach-Object { $_.FullName }) }
                 foreach ($x in $pick) {
                     Write-Host "Running $($x.Name) - if it asks where to extract, click Yes / accept the default ..." -ForegroundColor Yellow
-                    try { Start-Process -FilePath $x.FullName -WorkingDirectory $dd -Wait } catch { Write-Host $_.Exception.Message -ForegroundColor Red }
+                    try {
+                        $xp = Start-Process -FilePath $x.FullName -WorkingDirectory $dd -PassThru
+                        Wait-Beer $xp $x.Name | Out-Null
+                    } catch { Write-Host $_.Exception.Message -ForegroundColor Red }
                 }
                 $after = @()
                 foreach ($r in $roots) { $after += @(Get-ChildItem $r -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | ForEach-Object { $_.FullName }) }
@@ -147,6 +155,7 @@ if ($inf) { $lines += "[INFO] Driver:        Add Driver done by hand from $($inf
 else      { $lines += "[INFO] Driver:        done by hand ($driverNote)" }
 
 # --- 3. SOE_Reboot_eOPS.exe: in Tools, not on desktops -------------------------
+Show-Beer 'SOE_Reboot_eOPS.exe'
 $tools    = 'E:\Ghost Images\Waystation\Tools'
 $toolsExe = Join-Path $tools 'SOE_Reboot_eOPS.exe'
 $desktops = @(Get-ChildItem 'C:\Users' | Where-Object { $_.PSIsContainer } | ForEach-Object { Join-Path $_.FullName 'Desktop' } | Where-Object { Test-Path $_ })
@@ -178,12 +187,14 @@ elseif ($onDesk.Count -gt 0)  { $lines += "[PASS] Desktop exe:   removed from $(
 else                          { $lines += "[PASS] Desktop exe:   not on any desktop" }
 
 # --- 4. PLS install (known crash popup - click Close program) -------------------
+Show-Beer 'PLS install'
 $plsExe = 'C:\Source\Scripts\SOE_PLS_Install.exe'
 if (Test-Path $plsExe) {
     Write-Host 'Running PLS install - when "PLSCleanStart has stopped working" appears, click Close program...' -ForegroundColor Yellow
     try {
-        $proc = Start-Process -FilePath $plsExe -Wait -PassThru
-        $lines += "[PASS] PLS install:   completed (exit code $($proc.ExitCode))"
+        $proc = Start-Process -FilePath $plsExe -PassThru
+        $rc = Wait-Beer $proc 'PLS install'
+        $lines += "[PASS] PLS install:   completed (exit code $rc)"
     } catch {
         $lines += "[FAIL] PLS install:   $($_.Exception.Message)"
     }
@@ -192,6 +203,7 @@ if (Test-Path $plsExe) {
 }
 
 # --- 5. Java JRE 7u1 silent install --------------------------------------------
+Show-Beer 'Java JRE 7u1'
 $jreExe  = 'E:\Ghost Images\Waystation\AppStore\PLS\jre-7u1-windows-x64.exe'
 $javaBin = 'C:\Program Files\Java\jre7\bin\java.exe'
 if (Test-Path $javaBin) {
@@ -199,7 +211,8 @@ if (Test-Path $javaBin) {
 } elseif (Test-Path $jreExe) {
     Write-Host 'Installing Java JRE 7u1 (silent)...' -ForegroundColor Yellow
     try {
-        Start-Process -FilePath $jreExe -ArgumentList '/s' -Wait
+        $jp = Start-Process -FilePath $jreExe -ArgumentList '/s' -PassThru
+        Wait-Beer $jp 'Java JRE 7u1' | Out-Null
         if (Test-Path $javaBin) { $lines += "[PASS] Java JRE 7u1:  installed, verified at $javaBin" }
         else                    { $lines += "[FAIL] Java JRE 7u1:  installer ran but $javaBin not found" }
     } catch {
@@ -210,6 +223,7 @@ if (Test-Path $javaBin) {
 }
 
 # --- 6. generatekvs version check - NO recollect on a conversion ------------------
+Show-Beer 'generatekvs check'
 $gk = 'C:\Helpdesk\tools\generatekvs.exe'
 if (-not (Test-Path $gk)) {
     $lines += "[FAIL] generatekvs:   not found at $gk"
@@ -220,6 +234,7 @@ if (-not (Test-Path $gk)) {
 }
 
 # --- Summary -----------------------------------------------------------------
+Show-Beer 'Summary'
 $stamp   = Get-Date -Format 'yyyy-MM-dd HH:mm'
 $header  = "==== SOE CONVERT SUMMARY - site $site $siteName (ref $refId) - $env:COMPUTERNAME - $stamp ===="
 $summary = ($header, ($lines -join "`r`n")) -join "`r`n"
@@ -233,6 +248,7 @@ try { $summary | Out-File -FilePath (Join-Path $here 'summary.txt') -Encoding AS
 try { $summary | Out-File -FilePath 'C:\Helpdesk\soe_fixup_summary.txt' -Append -Encoding ASCII } catch { }
 Write-Host ''
 Write-Host "Summary saved to $here\summary.txt (soefix verify pulls it back to the Mac)." -ForegroundColor Cyan
+Finish-Beer 'Cheers - all steps done'
 try { Stop-Transcript | Out-Null } catch { }
 
 # --- Restart ------------------------------------------------------------------
