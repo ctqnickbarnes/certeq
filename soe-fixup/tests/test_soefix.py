@@ -59,6 +59,13 @@ def test_store_info_uses_sheet_when_present(monkeypatch):
     assert soefix.store_info(25, "Gizzy")["name"] == "Gizzy"
 
 
+def test_name_is_remembered_per_site(monkeypatch):
+    monkeypatch.setattr(soefix, "load_stores", lambda: ([], 0))
+    assert soefix.store_info(443, "Ferry Road")["name"] == "Ferry Road"
+    assert soefix.store_info(443, None)["name"] == "Ferry Road"      # later commands without --name
+    assert soefix.store_info(444, None)["name"] == "site 444"
+
+
 def test_ps_quote():
     assert soefix.ps_quote("O'Neil") == "O''Neil"
 

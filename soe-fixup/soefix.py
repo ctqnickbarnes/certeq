@@ -22,7 +22,7 @@ ac:
   soefix log N <note>                  manual entry;  soefix log  (no args) = clipboard mode
   soefix list                          pending stores from the sheet with corrected day counts
 
-Options: --name "Store Name" (when N is not in the sheet), --force (ignore Done in the sheet),
+Options: --name "Store Name" (when N is not in the sheet; remembered per site), --force (ignore Done in the sheet),
          --ip 10.56.55.1 (SOE address when the third octet is not the site number, e.g. sites > 255;
          RHS02 is taken as .93 on the same subnet; remembered per site in sites.json).
 Paths (sheet, static folder, its tsclient UNC, results log) come from soefix.toml next to
@@ -130,9 +130,11 @@ def store_info(site: int, name: str | None) -> dict:
         info = {"site": site, "name": row["name"], "ref": row["ref"] or "", "days": row["days"],
                 "done": row["done"], "backlog": row.get("backlog", False)}
     else:
-        info = {"site": site, "name": f"site {site}", "ref": "", "days": None, "done": False, "backlog": False}
+        info = {"site": site, "name": _site_rec(site).get("name") or f"site {site}", "ref": "", "days": None,
+                "done": False, "backlog": False}
     if name:
         info["name"] = name
+        remember(site, name=name)   # sticky, like --ip
     return info
 
 
