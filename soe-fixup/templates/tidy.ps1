@@ -7,10 +7,10 @@ $ErrorActionPreference = 'Continue'
 $site     = '{{SITE}}'
 $siteName = '{{NAME}}'
 $soeIp    = '{{IP_SOE}}'
-$c        = "\\$soeIp\c$"
 $logDir   = '{{STATIC_UNC}}\soefix-logs'
 $lines    = @()
 
+{{CONNECT}}
 function Remove-Artefact($path, $label) {
     if (-not (Test-Path $path)) { $script:lines += "[PASS] $label already gone ($path)"; return }
     try {
@@ -25,9 +25,12 @@ function Remove-Artefact($path, $label) {
 Write-Host ''
 Write-Host "SOE tidy - site $site $siteName - SOE $soeIp" -ForegroundColor Cyan
 Write-Host ''
+$soeHost = Connect-Soe $soeIp $site
+if (-not $soeHost) { $soeHost = $soeIp }
+$c = "\\$soeHost\c$"
 
 if (-not (Test-Path "$c\Temp")) {
-    $lines += "[FAIL] SOE:           cannot open $c - nothing on the SOE was removed"
+    $lines += "[FAIL] SOE:           cannot open $c - nothing removed (paste in a NORMAL PowerShell, or: net use \\$soeIp\c`$ /user:Administrator)"
 } else {
     # keep a copy of the summary/transcript on the Mac before deleting them (verify normally did this)
     $sum = "$c\Temp\soefix\summary.txt"

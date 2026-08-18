@@ -191,6 +191,8 @@ def ps_quote(s: str) -> str:
 
 def render(template: str, **vars: str) -> str:
     text = (TEMPLATES / template).read_text()
+    if "{{CONNECT}}" in text:
+        vars = {"CONNECT": (TEMPLATES / "_connect.ps1").read_text().rstrip("\n"), **vars}
     for k, v in vars.items():
         text = text.replace("{{" + k + "}}", str(v))
     left = re.findall(r"\{\{[A-Z_]+\}\}", text)

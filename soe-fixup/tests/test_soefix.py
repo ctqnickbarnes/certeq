@@ -233,6 +233,15 @@ def test_missing_sheet_config_dies(monkeypatch):
         soefix.load_stores()
 
 
+def test_rhs02_payloads_connect_by_ip_name_or_credentials(monkeypatch):
+    monkeypatch.setattr(soefix, "load_stores", lambda: ([], 0))
+    monkeypatch.setattr(soefix, "IP_OVERRIDE", "10.56.190.1")
+    for p in (soefix.bake_push(443, "", False, None, False), soefix.bake_verify(443, "X"), soefix.bake_tidy(443, "X")):
+        assert "function Connect-Soe" in p and "NZ{0:D5}SOE01" in p and "Get-Credential" in p
+        assert '$soeHost = Connect-Soe $soeIp $site' in p and '"\\\\$soeHost\\c$"' in p
+        assert "{{" not in p
+
+
 # ---------------------------------------------------------------- tidy
 def test_bake_tidy(monkeypatch, tmp_path):
     monkeypatch.setattr(soefix, "SITES", tmp_path / "sites.json")
