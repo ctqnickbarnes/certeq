@@ -8,8 +8,6 @@ $siteName = '{{NAME}}'
 $mode     = '{{MODE}}'
 $driver   = '{{DRIVER}}'
 $soeIp    = '{{IP_SOE}}'
-$c        = "\\$soeIp\c$"
-$e        = "\\$soeIp\e$"
 $stat     = '{{STATIC_UNC}}'
 $appstore = 'C:\Configuration\Provisioning\Appstore'
 $lines    = @()
@@ -21,6 +19,7 @@ $goCmd = @'
 {{GO_CMD}}
 '@
 
+{{CONNECT}}
 function Resolve-X {
     if (Test-Path 'X:\') { return 'X:' }
     $m = (net use 2>$null) | Select-String -Pattern '\sX:\s+(\\\\\S+)'
@@ -42,9 +41,13 @@ Write-Host ''
 # --- 0. reachability ----------------------------------------------------------
 if (Test-Connection -ComputerName $soeIp -Count 2 -Quiet) { $lines += "[PASS] Ping:          $soeIp replies" }
 else                                                       { $lines += "[FAIL] Ping:          $soeIp no reply (VM up? IP set?)" }
+$soeHost = Connect-Soe $soeIp $site
+if (-not $soeHost) { $soeHost = $soeIp }
+$c   = "\\$soeHost\c$"
+$e   = "\\$soeHost\e$"
 $cOk = Test-Path $c
 $eOk = Test-Path $e
-if ($cOk) { $lines += "[PASS] Share c`$:      $c" } else { $lines += "[FAIL] Share c`$:      cannot open $c" }
+if ($cOk) { $lines += "[PASS] Share c`$:      $c" } else { $lines += "[FAIL] Share c`$:      cannot open $c - paste in a NORMAL (non-elevated) PowerShell, or: net use \\$soeIp\c`$ /user:NZ0<site>SOE01\Administrator" }
 if ($eOk) { $lines += "[PASS] Share e`$:      $e" } else { $lines += "[FAIL] Share e`$:      cannot open $e" }
 if (Test-Path (Join-Path $stat 'generatekvs.exe')) {
     $lines += "[PASS] tsclient:      $stat"

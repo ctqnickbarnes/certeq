@@ -34,7 +34,7 @@ and open the PSM `.rdp` in mstsc with *Local Resources > Drives* ticked.
 | 3 | RHS02 | manual | screenshot the restore result. Hyper-V: start SOE VM > Connect > country, 4-digit ID, `10.56.202.1`, timezone; both restarts (~15 min); sign out store user, log in as **Administrator** |
 | 4 | Mac / Win | `soefix push 202 --driver "<folder>" --name Greenlane` (Win: `soefix.cmd push ...`) | payload on clipboard |
 | 5 | RHS02 | paste | ping + `c$` / `e$` share checks; writes `convert.ps1` + `go.cmd` to SOE `C:\Temp\soefix`; Maxtel.ps1 + Maxtel\ -> SOE `E:\...\AppStore`; driver folder `X:\Certeq\<folder>` -> SOE `C:\Temp\<folder>` (only with `--driver`); replaces missing/2015 `generatekvs.exe`; JRE installer only if the SOE lacks it |
-| 6 | VM SOE | `Win+R` -> `C:\Temp\soefix\go` | Maxtel -> driver: `printui /s /t2` opens and the script **pauses** (with `--driver` the folder is already in `C:\Temp`; if it holds self-extracting packages like `Y17C_C1-hostm-K1.exe` the script asks which to run, runs it, then stages the first `.inf`; without `--driver`, copy it yourself first - see below). Add > x64 > Have Disk > `.inf` > model, driver only, Enter -> `SOE_Reboot_eOPS.exe` into Tools, off desktops -> PLS (click **Close program**) -> Java silent -> generatekvs is 2025 (no recollect) -> summary -> 15 s -> restart |
+| 6 | VM SOE | `Win+R` -> `C:\Temp\soefix\go` | Maxtel -> driver: `printui /s /t2` opens and the script **pauses** (with `--driver` the folder is already in `C:\Temp`; if it holds self-extracting packages like `LJPro_MFP_M127-M128_drv-only_15309_1.exe` the script runs it (asks which if several) - click **Yes** to the extractor's default location - moves the extracted folder under `C:\Temp\<folder>` and stages the first `.inf`; without `--driver`, or if no `.inf` turns up, it still pauses so you finish by hand - see below). Add > x64 > Have Disk > `.inf` > model, driver only, Enter -> `SOE_Reboot_eOPS.exe` into Tools, off desktops -> PLS (click **Close program**) -> Java silent -> generatekvs is 2025 (no recollect) -> summary -> 15 s -> restart |
 | 7 | Mac / Win | `soefix verify 202` / `soefix.cmd verify 202` | payload on clipboard |
 | 8 | RHS02 | paste, after the reboot | ping; `DT Ranking Reboot` shortcut present, targets `E:\...\Tools\SOE_Reboot_eOPS.exe`, no real exe; copies the SOE summary back to `<static_dir>/soefix-logs/202.txt`. Shortcut missing = GP hasn't run: restart the VM (line printed), verify again |
 | 9 | Mac / Win | `soefix log 202` / `soefix.cmd log 202` | summary -> `results.log` |
@@ -47,11 +47,16 @@ Three pastes (2, 5, 12), one typed line on the SOE (6); every step prints
 
 Sites above 255 (e.g. 310) can't use `10.56.<site>.x` - pass the SOE address:
 `soefix push 310 --ip 10.56.55.1 ...` (RHS02 is assumed to be `.93` on that subnet). It's remembered
-in a local `sites.json`, so `verify 310` / `tidy 310` don't need it again.
+in a local `sites.json` (so is `--name`), so `verify 310` / `tidy 310` don't need them again.
 
 `--driver` takes a folder name under `X:\Certeq` (e.g. `"Printer Drivers\Epson TM-T88V"`),
 a path under `X:\`, or a full `X:\...` / UNC path; the SOE gets it as `C:\Temp\<last folder>`.
 `soefix restore` prints the folder list two levels deep so you can copy the name.
+
+If a push/verify/tidy paste can't open `\\10.56.N.1\c$` (elevated console, or the SOE
+only accepts its own local admin), it tries the hostname and then prompts for the SOE's
+`NZ0<site>SOE01\Administrator` password; the manual equivalent is
+`net use \\10.56.N.1\c$ /user:NZ0<site>SOE01\Administrator` before pasting.
 
 Driver by hand (step 6 without `--driver`): when the script pauses, browse
 `\\10.56.N.93\x$\Certeq` from the SOE and copy the printer's driver folder to

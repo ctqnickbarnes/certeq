@@ -59,6 +59,13 @@ def test_store_info_uses_sheet_when_present(monkeypatch):
     assert soefix.store_info(25, "Gizzy")["name"] == "Gizzy"
 
 
+def test_name_is_remembered_per_site(monkeypatch):
+    monkeypatch.setattr(soefix, "load_stores", lambda: ([], 0))
+    assert soefix.store_info(443, "Ferry Road")["name"] == "Ferry Road"
+    assert soefix.store_info(443, None)["name"] == "Ferry Road"      # later commands without --name
+    assert soefix.store_info(444, None)["name"] == "site 444"
+
+
 def test_ps_quote():
     assert soefix.ps_quote("O'Neil") == "O''Neil"
 
@@ -81,7 +88,7 @@ def test_bake_verify():
     assert first_code_line(p) == "& {"
     assert "10.56.27.1" in p and "\\c$" in p
     assert "soefix-logs\\27.txt" in p
-    assert "DT Ranking Reboot" in p and "SOE_Reboot_eOPS.exe" in p
+    assert "'DT Ranking Reboot*'" in p and "SOE_Reboot_eOPS.exe" in p   # not 'DT Ranking*' (DTBrowser shortcut)
     assert "O''Neil Store" in p
     assert "Read-Host" not in p
 
@@ -102,6 +109,10 @@ def test_bake_soe_convert():
     # without --driver the step is still there, just manual - same pause
     s2 = soefix.bake_soe("convert", INFO, "", "10.56.27.93")
     assert "done by hand" in s2 and "[SKIP] Driver" not in s2
+    # printui + the pause happen unconditionally, after the driver block
+    for script in (s, s2):
+        assert script.count("Start-Process -FilePath 'printui.exe'") == 1
+        assert script.index("printui.exe") < script.index("Press Enter here once the driver is listed") < script.index("# --- 3.")
 
 
 def test_convert_driver_uses_leaf_name():
@@ -231,6 +242,15 @@ def test_missing_sheet_config_dies(monkeypatch):
     monkeypatch.setattr(soefix, "SHEET", None)
     with pytest.raises(SystemExit):
         soefix.load_stores()
+
+
+def test_rhs02_payloads_connect_by_ip_name_or_credentials(monkeypatch):
+    monkeypatch.setattr(soefix, "load_stores", lambda: ([], 0))
+    monkeypatch.setattr(soefix, "IP_OVERRIDE", "10.56.190.1")
+    for p in (soefix.bake_push(443, "", False, None, False), soefix.bake_verify(443, "X"), soefix.bake_tidy(443, "X")):
+        assert "function Connect-Soe" in p and "NZ{0:D5}SOE01" in p and "Get-Credential" in p
+        assert '$soeHost = Connect-Soe $soeIp $site' in p and '"\\\\$soeHost\\c$"' in p
+        assert "{{" not in p
 
 
 # ---------------------------------------------------------------- tidy

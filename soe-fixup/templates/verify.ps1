@@ -6,14 +6,17 @@ $ErrorActionPreference = 'Continue'
 $site     = '{{SITE}}'
 $siteName = '{{NAME}}'
 $soeIp    = '{{IP_SOE}}'
-$c        = "\\$soeIp\c$"
 $logDir   = '{{STATIC_UNC}}\soefix-logs'
 $expected = 'E:\Ghost Images\Waystation\Tools\SOE_Reboot_eOPS.exe'
 $lines    = @()
 
+{{CONNECT}}
 Write-Host ''
 Write-Host "SOE verify - site $site $siteName - SOE $soeIp" -ForegroundColor Cyan
 Write-Host ''
+$soeHost = Connect-Soe $soeIp $site
+if (-not $soeHost) { $soeHost = $soeIp }
+$c = "\\$soeHost\c$"
 
 # --- 1. ping ----------------------------------------------------------------
 if (Test-Connection -ComputerName $soeIp -Count 2 -Quiet) {
@@ -24,13 +27,14 @@ if (Test-Connection -ComputerName $soeIp -Count 2 -Quiet) {
 
 # --- 2. desktop: shortcut present, targets Tools exe, no real exe ---------------
 if (-not (Test-Path "$c\Users")) {
-    $lines += "[FAIL] Desktop:       cannot open $c\Users - admin share unreachable"
+    $lines += "[FAIL] Desktop:       cannot open $c\Users - paste in a NORMAL (non-elevated) PowerShell, or: net use \\$soeIp\c`$ /user:NZ0<site>SOE01\Administrator"
 } else {
     $desktops = @(Get-ChildItem "$c\Users" | Where-Object { $_.PSIsContainer } | ForEach-Object { Join-Path $_.FullName 'Desktop' } | Where-Object { Test-Path $_ })
     $lnks = @()
     $exes = @()
     foreach ($d in $desktops) {
-        $lnks += @(Get-ChildItem $d -Filter '*.lnk' -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'DT Ranking*' })
+        # only the GP-deployed reboot shortcut; 'DT Ranking.lnk' (DTBrowser) is a different, legitimate shortcut
+        $lnks += @(Get-ChildItem $d -Filter '*.lnk' -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'DT Ranking Reboot*' })
         $exes += @(Get-ChildItem $d -Filter 'SOE_Reboot_eOPS.exe' -ErrorAction SilentlyContinue)
     }
     if ($lnks.Count -eq 0) {

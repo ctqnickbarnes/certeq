@@ -46,24 +46,19 @@ if (Test-Path $mx) {
 }
 
 # --- 2. Printer driver: stage + Add Driver via printui ------------------------
+# Whatever happens below, printui is opened and the script pauses so the step can always be finished by hand.
+$inf = $null
+$driverNote = ''
 if (-not $driver) {
-    # no --driver given to soefix push: same pause, you do the copy + Have Disk by hand
-    Start-Process -FilePath 'printui.exe' -ArgumentList '/s /t2'
-    Write-Host ''
-    Write-Host 'No driver folder was pushed - do the driver by hand now:' -ForegroundColor Yellow
-    Write-Host "   1. Browse \\$rhsIp\x`$\Certeq and copy the printer's driver folder to C:\Temp (extract if needed)." -ForegroundColor Yellow
-    Write-Host '   2. In the printui window already open: Drivers > Add > x64 > Have Disk > the .inf in C:\Temp\<folder> > model.' -ForegroundColor Yellow
-    Write-Host '   3. Install the driver only - no printer, no port. Confirm it is listed.' -ForegroundColor Yellow
-    Read-Host 'Press Enter here once the driver is listed'
-    $lines += "[INFO] Driver:        done by hand (no --driver given to soefix push)"
+    $driverNote = 'no --driver given to soefix push'
 } else {
     $dd = Join-Path 'C:\Temp' $driver
     if (-not (Test-Path $dd)) {
-        $lines += "[FAIL] Driver:        $dd not found (soefix push copies it from X:\Certeq)"
+        $driverNote = "$dd not found (soefix push copies it from X:\Certeq)"
     } else {
-        $infs = @(Get-ChildItem $dd -Filter '*.inf' -ErrorAction SilentlyContinue | Sort-Object Name)
+        $infs = @(Get-ChildItem $dd -Filter '*.inf' -Recurse -ErrorAction SilentlyContinue | Sort-Object Name)
         if ($infs.Count -eq 0) {
-            # nothing at top level: the folder holds packages - expand zips, run the self-extracting exe(s)
+            # the folder holds packages: expand zips, run the self-extracting exe(s)
             $zips = @(Get-ChildItem $dd -Filter '*.zip' -ErrorAction SilentlyContinue)
             foreach ($z in $zips) {
                 Write-Host "Expanding $($z.Name)..." -ForegroundColor Yellow
@@ -85,19 +80,39 @@ if (-not $driver) {
                         if ($pick.Count -eq 0) { $pick = @($exes[0]) }
                     }
                 }
+                # extractors like HP's unpack to C:\<PackageName> - snapshot so we can find what they create
+                $roots  = @('C:\', 'C:\Temp')
+                $before = @()
+                foreach ($r in $roots) { $before += @(Get-ChildItem $r -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | ForEach-Object { $_.FullName }) }
                 foreach ($x in $pick) {
-                    Write-Host "Running $($x.Name) - if it asks where to extract, choose $dd ..." -ForegroundColor Yellow
+                    Write-Host "Running $($x.Name) - if it asks where to extract, click Yes / accept the default ..." -ForegroundColor Yellow
                     try { Start-Process -FilePath $x.FullName -WorkingDirectory $dd -Wait } catch { Write-Host $_.Exception.Message -ForegroundColor Red }
                 }
+                $after = @()
+                foreach ($r in $roots) { $after += @(Get-ChildItem $r -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer } | ForEach-Object { $_.FullName }) }
+                foreach ($n in $after) {
+                    if ($before -contains $n) { continue }
+                    if ($n -eq $dd -or $n -like "$dd\*") { continue }
+                    # bring the extracted folder under the driver folder (thin client copies from there later)
+                    $dest = Join-Path $dd (Split-Path $n -Leaf)
+                    try {
+                        Move-Item $n $dest -Force -ErrorAction Stop
+                        Write-Host "Moved extracted $n -> $dest" -ForegroundColor Cyan
+                    } catch {
+                        Write-Host "Extracted to $n (could not move it under $dd - using it in place)" -ForegroundColor Yellow
+                        $infs += @(Get-ChildItem $n -Filter '*.inf' -Recurse -ErrorAction SilentlyContinue | Sort-Object Name)
+                    }
+                }
             }
-            $infs = @(Get-ChildItem $dd -Filter '*.inf' -Recurse -ErrorAction SilentlyContinue | Sort-Object Name)
+            $infs = @($infs) + @(Get-ChildItem $dd -Filter '*.inf' -Recurse -ErrorAction SilentlyContinue | Sort-Object Name)
+            $infs = @($infs | Sort-Object FullName -Unique | Sort-Object Name)
             if ($infs.Count -eq 0) {
                 $ans = Read-Host "No .inf found under $dd - folder where the package extracted (Enter to skip)"
                 if ($ans -and (Test-Path $ans)) { $infs = @(Get-ChildItem $ans -Filter '*.inf' -Recurse -ErrorAction SilentlyContinue | Sort-Object Name) }
             }
         }
         if ($infs.Count -eq 0) {
-            $lines += "[FAIL] Driver:        no .inf in $dd (even after extract)"
+            $driverNote = "no .inf found under $dd even after extracting"
         } else {
             $inf = $infs[0]
             Write-Host "Using top .inf: $($inf.FullName)  ($($infs.Count) found)" -ForegroundColor Cyan
@@ -113,16 +128,23 @@ if (-not $driver) {
             } else {
                 $lines += "[FAIL] Driver:        pnputil exit $LASTEXITCODE - $pnText"
             }
-            Start-Process -FilePath 'printui.exe' -ArgumentList '/s /t2'
-            Write-Host ''
-            Write-Host 'printui opened: Drivers > Add > x64 > Have Disk >' -ForegroundColor Yellow
-            Write-Host "   $($inf.FullName)" -ForegroundColor Yellow
-            Write-Host 'Pick the printer model, finish, confirm the driver is listed. Do NOT create a printer.' -ForegroundColor Yellow
-            Read-Host 'Press Enter here once the driver is listed'
-            $lines += "[INFO] Driver:        Add Driver done by hand from $($inf.FullName)"
         }
     }
 }
+Start-Process -FilePath 'printui.exe' -ArgumentList '/s /t2'
+Write-Host ''
+if ($inf) {
+    Write-Host 'printui opened: Drivers > Add > x64 > Have Disk >' -ForegroundColor Yellow
+    Write-Host "   $($inf.FullName)" -ForegroundColor Yellow
+} else {
+    Write-Host "printui opened. Driver not staged automatically ($driverNote) - do it by hand:" -ForegroundColor Yellow
+    Write-Host "   1. Get the printer's driver folder onto C:\Temp (from \\$rhsIp\x`$\Certeq if needed) and extract the package." -ForegroundColor Yellow
+    Write-Host '   2. In printui: Drivers > Add > x64 > Have Disk > the extracted .inf > model.' -ForegroundColor Yellow
+}
+Write-Host 'Pick the printer model, finish, confirm the driver is listed. Do NOT create a printer.' -ForegroundColor Yellow
+Read-Host 'Press Enter here once the driver is listed'
+if ($inf) { $lines += "[INFO] Driver:        Add Driver done by hand from $($inf.FullName)" }
+else      { $lines += "[INFO] Driver:        done by hand ($driverNote)" }
 
 # --- 3. SOE_Reboot_eOPS.exe: in Tools, not on desktops -------------------------
 $tools    = 'E:\Ghost Images\Waystation\Tools'
