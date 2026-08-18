@@ -35,7 +35,7 @@ def payloads(monkeypatch):
     return {
         "restore": soefix.bake_restore(27),
         "verify": soefix.bake_verify(27, "Test's Store"),
-        "tidy": soefix.bake_tidy(27, "Test's Store", "Printer Drivers"),
+        "tidy": soefix.bake_tidy(27, "Test's Store"),
         "push-convert": soefix.bake_push(202, "Epson TM-T88", False, "Greenlane", False),
         "push-cleanup": soefix.bake_push(25, "", True, None, False),
         "soe-convert": soefix.bake_soe("convert", INFO, "Epson TM-T88", "10.56.27.93"),

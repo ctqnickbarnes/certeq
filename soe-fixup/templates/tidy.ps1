@@ -1,12 +1,12 @@
-# soefix tidy - paste into PowerShell on RHS02 as the LAST step for site {{SITE}} (after the
-# thin-client printer is done - it copies the driver from the SOE's C:\Temp). Removes every
-# artefact the process left on RHS02 and on the SOE (via c$). Nothing else is touched.
+# soefix tidy - paste into PowerShell on RHS02 as the last step for site {{SITE}}. Removes what
+# soefix itself put on the SOE (via c$): C:\Temp\soefix (scripts, summary, transcript),
+# C:\Helpdesk\soe_fixup_summary.txt and generatekvs.exe.2015.bak. Leaves the driver folder,
+# Maxtel, the JRE installer and RHS02's C:\SOE_Backup alone.
 & {
 $ErrorActionPreference = 'Continue'
 $site     = '{{SITE}}'
 $siteName = '{{NAME}}'
 $soeIp    = '{{IP_SOE}}'
-$driver   = '{{DRIVER}}'
 $c        = "\\$soeIp\c$"
 $logDir   = '{{STATIC_UNC}}\soefix-logs'
 $lines    = @()
@@ -45,20 +45,9 @@ if (-not (Test-Path "$c\Temp")) {
     if (-not ($lines -like '*NOT deleting*')) {
         Remove-Artefact "$c\Temp\soefix" 'SOE C:\Temp\soefix'
     }
-    if ($driver) {
-        Remove-Artefact (Join-Path "$c\Temp" $driver) "SOE C:\Temp\$driver"
-    } else {
-        $lines += "[SKIP] SOE driver:    no --driver recorded for this site - check C:\Temp on the SOE by hand"
-    }
     Remove-Artefact "$c\Helpdesk\soe_fixup_summary.txt" 'SOE soe_fixup_summary.txt'
     Remove-Artefact "$c\Helpdesk\tools\generatekvs.exe.2015.bak" 'SOE generatekvs.exe.2015.bak'
-    $left = @(Get-ChildItem "$c\Temp" -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
-    if ($left.Count -gt 0) { $lines += "[INFO] SOE C:\Temp:    still contains: $($left -join ', ') (not ours, left alone)" }
-    else                   { $lines += "[PASS] SOE C:\Temp:    empty" }
 }
-
-# RHS02: the restore staging copy
-Remove-Artefact 'C:\SOE_Backup' 'RHS02 C:\SOE_Backup'
 
 # --- Summary -----------------------------------------------------------------
 $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm'

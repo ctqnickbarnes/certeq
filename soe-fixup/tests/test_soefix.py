@@ -233,21 +233,21 @@ def test_missing_sheet_config_dies(monkeypatch):
 
 
 # ---------------------------------------------------------------- tidy
-def test_bake_tidy_uses_remembered_driver(monkeypatch, tmp_path):
+def test_bake_tidy(monkeypatch, tmp_path):
     monkeypatch.setattr(soefix, "SITES", tmp_path / "sites.json")
     monkeypatch.setattr(soefix, "IP_OVERRIDE", None)
     monkeypatch.setattr(soefix, "load_stores", lambda: ([], 0))
     soefix.bake_push(27, r"X:\Certeq\Printer Drivers", False, None, False)   # records driver leaf
     assert soefix._site_rec(27) == {"driver": "Printer Drivers"}
-    t = soefix.bake_tidy(27, "X", "")
+    t = soefix.bake_tidy(27, "X")
     assert first_code_line(t) == "& {"
-    assert "$driver   = 'Printer Drivers'" in t and "10.56.27.1" in t
-    for must in ("Temp\\soefix", "SOE_Backup", "soe_fixup_summary.txt", "generatekvs.exe.2015.bak"):
+    assert "10.56.27.1" in t
+    for must in ("Temp\\soefix", "soe_fixup_summary.txt", "generatekvs.exe.2015.bak"):
         assert must in t
+    # only soefix's own files: never the driver folder, Maxtel, JRE or RHS02's backup copy
+    for never in ("Remove-Artefact 'C:\\SOE_Backup'", "Printer Drivers", "Maxtel", "jre-7u1"):
+        assert never not in t
     assert "Read-Host" not in t
-    # explicit --driver wins; nothing recorded -> empty
-    assert "$driver   = 'Other'" in soefix.bake_tidy(27, "X", "Other")
-    assert "$driver   = ''" in soefix.bake_tidy(28, "X", "")
 
 
 def test_sites_json_backcompat(monkeypatch, tmp_path):

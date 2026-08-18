@@ -40,14 +40,14 @@ and open the PSM `.rdp` in mstsc with *Local Resources > Drives* ticked.
 | 9 | Mac / Win | `soefix log 202` / `soefix.cmd log 202` | summary -> `results.log` |
 | 10 | thin client | manual | USB printer, Have Disk from `\\10.56.202.1\c$\Temp\<folder>`, test page; then normal RDP to the SOE: printer shows `(redirected #)`, test page; SME sign-off |
 | 11 | Mac / Win | `soefix tidy 202` / `soefix.cmd tidy 202` | payload on clipboard |
-| 12 | RHS02 | paste - **last**, after the printer | removes everything the process left: RHS02 `C:\SOE_Backup`; SOE `C:\Temp\soefix`, `C:\Temp\<driver folder>`, `C:\Helpdesk\soe_fixup_summary.txt`, `generatekvs.exe.2015.bak` (keeps a copy of the summary on your machine first). Reports anything else still in the SOE's `C:\Temp` without touching it |
+| 12 | RHS02 | paste, last | removes soefix's own files from the SOE: `C:\Temp\soefix` (scripts, summary, transcript), `C:\Helpdesk\soe_fixup_summary.txt`, `generatekvs.exe.2015.bak` - after making sure the summary is saved on your machine. Driver folder, Maxtel, JRE and RHS02's `C:\SOE_Backup` stay |
 
 Three pastes (2, 5, 12), one typed line on the SOE (6); every step prints
 `[PASS]/[FAIL]` and never aborts, so read the summary before moving on.
 
 Sites above 255 (e.g. 310) can't use `10.56.<site>.x` - pass the SOE address:
 `soefix push 310 --ip 10.56.55.1 ...` (RHS02 is assumed to be `.93` on that subnet). It's remembered
-in a local `sites.json` (as is the `--driver` folder), so `verify 310` / `tidy 310` don't need them again.
+in a local `sites.json`, so `verify 310` / `tidy 310` don't need it again.
 
 `--driver` takes a folder name under `X:\Certeq` (e.g. `"Printer Drivers\Epson TM-T88V"`),
 a path under `X:\`, or a full `X:\...` / UNC path; the SOE gets it as `C:\Temp\<last folder>`.

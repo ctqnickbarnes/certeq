@@ -13,7 +13,7 @@ Paste on RHS02 (the PSM session):
                                        (<folder> = name under X:\\Certeq, e.g. "Printer Drivers\\Epson", or a full X:\\ path)
   soefix push N --cleanup              stage cleanup.ps1 (+ generatekvs) on an already-converted SOE
   soefix verify N                      post-reboot checks over c$, pull the summary back to the Mac
-  soefix tidy N                        LAST step: remove every artefact on RHS02 + SOE (after the printer)
+  soefix tidy N                        last step: remove soefix's own files from the SOE (scripts, logs, .bak)
 
 Type on the SOE (Win+R):   C:\\Temp\\soefix\\go
 
@@ -254,11 +254,9 @@ def bake_push(site: int, driver: str, cleanup: bool, name: str | None, force: bo
     )
 
 
-def bake_tidy(site: int, name: str, driver: str) -> str:
+def bake_tidy(site: int, name: str) -> str:
     d = derive(site)
-    leaf = driver_leaf(driver) or _site_rec(site).get("driver", "")
-    return render("tidy.ps1", SITE=site, NAME=ps_quote(name), IP_SOE=d["ip_soe"],
-                  DRIVER=ps_quote(leaf), STATIC_UNC=ps_quote(STATIC_UNC))
+    return render("tidy.ps1", SITE=site, NAME=ps_quote(name), IP_SOE=d["ip_soe"], STATIC_UNC=ps_quote(STATIC_UNC))
 
 
 # --------------------------------------------------------------------------- clipboard
@@ -301,15 +299,12 @@ def cmd_verify(site: int, name: str | None) -> None:
     print(f"It also copies the SOE summary to {STATIC_UNC}\\soefix-logs\\{site}.txt (= {LOGS_IN}) - then: soefix log {site}")
 
 
-def cmd_tidy(site: int, name: str | None, driver: str) -> None:
+def cmd_tidy(site: int, name: str | None) -> None:
     info = store_info(site, name)
-    payload = bake_tidy(site, info["name"], driver)
-    pbcopy(payload)
-    leaf = driver_leaf(driver) or _site_rec(site).get("driver", "")
-    print(f"tidy payload for site {site} {info['name']} on clipboard - paste on RHS02 as the LAST step")
-    print("(after the thin-client printer - it copies the driver from the SOE's C:\\Temp).")
-    print(f"Removes: RHS02 C:\\SOE_Backup; SOE C:\\Temp\\soefix, {'C:\\Temp\\' + leaf if leaf else '(no driver folder recorded)'}, "
-          "C:\\Helpdesk\\soe_fixup_summary.txt, generatekvs.exe.2015.bak.")
+    pbcopy(bake_tidy(site, info["name"]))
+    print(f"tidy payload for site {site} {info['name']} on clipboard - paste on RHS02 as the last step.")
+    print("Removes from the SOE: C:\\Temp\\soefix (scripts, summary, transcript), C:\\Helpdesk\\soe_fixup_summary.txt,")
+    print("generatekvs.exe.2015.bak. Driver folder, Maxtel, JRE and RHS02's C:\\SOE_Backup are left in place.")
 
 
 def cmd_list() -> None:
@@ -417,7 +412,7 @@ def main() -> None:
     elif cmd == "verify":
         cmd_verify(site_arg(), name)
     elif cmd == "tidy":
-        cmd_tidy(site_arg(), name, driver)
+        cmd_tidy(site_arg(), name)
     elif cmd.isdigit():
         die(f"the one-paste cleanup is gone - use:  soefix push {cmd} --cleanup   (or restore/push/verify for a conversion)")
     else:
