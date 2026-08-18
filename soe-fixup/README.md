@@ -39,13 +39,15 @@ and open the PSM `.rdp` in mstsc with *Local Resources > Drives* ticked.
 | 8 | RHS02 | paste, after the reboot | ping; `DT Ranking Reboot` shortcut present, targets `E:\...\Tools\SOE_Reboot_eOPS.exe`, no real exe; copies the SOE summary back to `<static_dir>/soefix-logs/202.txt`. Shortcut missing = GP hasn't run: restart the VM (line printed), verify again |
 | 9 | Mac / Win | `soefix log 202` / `soefix.cmd log 202` | summary -> `results.log` |
 | 10 | thin client | manual | USB printer, Have Disk from `\\10.56.202.1\c$\Temp\<folder>`, test page; then normal RDP to the SOE: printer shows `(redirected #)`, test page; SME sign-off |
+| 11 | Mac / Win | `soefix tidy 202` / `soefix.cmd tidy 202` | payload on clipboard |
+| 12 | RHS02 | paste - **last**, after the printer | removes everything the process left: RHS02 `C:\SOE_Backup`; SOE `C:\Temp\soefix`, `C:\Temp\<driver folder>`, `C:\Helpdesk\soe_fixup_summary.txt`, `generatekvs.exe.2015.bak` (keeps a copy of the summary on your machine first). Reports anything else still in the SOE's `C:\Temp` without touching it |
 
-Two pastes to wait on (2, 5), one typed line on the SOE (6); every step prints
+Three pastes (2, 5, 12), one typed line on the SOE (6); every step prints
 `[PASS]/[FAIL]` and never aborts, so read the summary before moving on.
 
 Sites above 255 (e.g. 310) can't use `10.56.<site>.x` - pass the SOE address:
 `soefix push 310 --ip 10.56.55.1 ...` (RHS02 is assumed to be `.93` on that subnet). It's remembered
-in a local `sites.json`, so `verify 310` etc. don't need it again.
+in a local `sites.json` (as is the `--driver` folder), so `verify 310` / `tidy 310` don't need them again.
 
 `--driver` takes a folder name under `X:\Certeq` (e.g. `"Printer Drivers\Epson TM-T88V"`),
 a path under `X:\`, or a full `X:\...` / UNC path; the SOE gets it as `C:\Temp\<last folder>`.
@@ -66,6 +68,7 @@ soefix push 25 --cleanup              # paste on RHS02 (SOE reachable at 10.56.2
 # on the SOE:  Win+R  ->  C:\Temp\soefix\go        (no restart)
 soefix verify 25 ; soefix log 25      # verify's desktop checks may FAIL harmlessly on
                                       # an old-style site; the summary pull is what matters
+soefix tidy 25                        # paste on RHS02: removes C:\Temp\soefix etc. from the SOE
 ```
 
 Stores marked **Done** in the sheet are refused (`--force` to override).
@@ -106,7 +109,7 @@ Nothing in the payloads cares who drives them; only the generator side differs.
 
 - `soefix.py` - generator / logger (uv script); `soefix.cmd` Windows launcher
 - `soefix.example.toml` - config template; copy to `soefix.toml` and edit
-- `templates/restore.ps1`, `push.ps1`, `verify.ps1` - RHS02 payloads (`& { }`, paste)
+- `templates/restore.ps1`, `push.ps1`, `verify.ps1`, `tidy.ps1` - RHS02 payloads (`& { }`, paste)
 - `templates/convert.ps1`, `cleanup.ps1`, `go.cmd` - written onto the SOE by push
 - `tests/` - `uv run pytest` (generator tests + real PowerShell parse check of
   every baked payload via `pwsh`: `brew install powershell` / `winget install Microsoft.PowerShell`)

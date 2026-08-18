@@ -29,6 +29,7 @@ def payloads(monkeypatch):
     return {
         "restore": soefix.bake_restore(27),
         "verify": soefix.bake_verify(27, "Test's Store"),
+        "tidy": soefix.bake_tidy(27, "Test's Store", "Printer Drivers"),
         "push-convert": soefix.bake_push(202, "Epson TM-T88", False, "Greenlane", False),
         "push-cleanup": soefix.bake_push(25, "", True, None, False),
         "soe-convert": soefix.bake_soe("convert", INFO, "Epson TM-T88", "10.56.27.93"),
@@ -37,7 +38,7 @@ def payloads(monkeypatch):
 
 
 @pytest.mark.skipif(PWSH is None, reason="pwsh not installed (brew install --cask powershell)")
-@pytest.mark.parametrize("name", ["restore", "verify", "push-convert", "push-cleanup", "soe-convert", "soe-cleanup"])
+@pytest.mark.parametrize("name", ["restore", "verify", "tidy", "push-convert", "push-cleanup", "soe-convert", "soe-cleanup"])
 def test_payload_parses(name, tmp_path, monkeypatch):
     text = payloads(monkeypatch)[name]
     f = tmp_path / f"{name}.ps1"

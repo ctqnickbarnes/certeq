@@ -13,6 +13,7 @@ Paste on RHS02 (the PSM session):
                                        (<folder> = name under X:\\Certeq, e.g. "Printer Drivers\\Epson", or a full X:\\ path)
   soefix push N --cleanup              stage cleanup.ps1 (+ generatekvs) on an already-converted SOE
   soefix verify N                      post-reboot checks over c$, pull the summary back to the Mac
+  soefix tidy N                        LAST step: remove every artefact on RHS02 + SOE (after the printer)
 
 Type on the SOE (Win+R):   C:\\Temp\\soefix\\go
 
@@ -149,21 +150,32 @@ def _sites() -> dict:
     return {}
 
 
-def remember_ip(site: int, ip: str) -> None:
+def _site_rec(site: int) -> dict:
+    rec = _sites().get(str(site), {})
+    return {"ip": rec} if isinstance(rec, str) else rec   # older files stored just the ip
+
+
+def remember(site: int, **kv: str) -> None:
     d = _sites()
-    if d.get(str(site)) != ip:
-        d[str(site)] = ip
+    rec = _site_rec(site)
+    rec.update({k: v for k, v in kv.items() if v})
+    if d.get(str(site)) != rec:
+        d[str(site)] = rec
         SITES.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n")
 
 
+def driver_leaf(driver: str) -> str:
+    return driver.replace("/", "\\").rstrip("\\").split("\\")[-1] if driver else ""
+
+
 def derive(site: int) -> dict:
-    ip = IP_OVERRIDE or _sites().get(str(site))
+    ip = IP_OVERRIDE or _site_rec(site).get("ip")
     if ip:
         parts = ip.split(".")
         if len(parts) != 4 or not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
             die(f"--ip must be a full IPv4 address like 10.56.55.1, got {ip!r}")
         if IP_OVERRIDE:
-            remember_ip(site, ip)
+            remember(site, ip=ip)
         net = ".".join(parts[:3])
     else:
         if site > 255:
@@ -202,8 +214,7 @@ def bake_soe(mode: str, info: dict, driver: str, ip_rhs: str) -> str:
     common = dict(SITE=info["site"], NAME=ps_quote(info["name"]), REF=ps_quote(str(info["ref"])))
     if mode == "convert":
         # the SOE only ever sees C:\Temp\<leaf>, whatever form --driver took
-        leaf = driver.replace("/", "\\").rstrip("\\").split("\\")[-1]
-        return render("convert.ps1", DRIVER=ps_quote(leaf), IP_RHS=ip_rhs, **common)
+        return render("convert.ps1", DRIVER=ps_quote(driver_leaf(driver)), IP_RHS=ip_rhs, **common)
     if mode == "cleanup":
         if not isinstance(info["days"], (int, float)):
             raise ValueError("cleanup mode needs a day count from the sheet (Days Since Completion is empty)")
@@ -225,6 +236,8 @@ def bake_push(site: int, driver: str, cleanup: bool, name: str | None, force: bo
         die(f"site {site} {info['name']} is marked Done in the sheet - use --force to push anyway")
     soe_script = bake_soe(mode, info, driver, d["ip_rhs"])
     check_embeddable(soe_script)
+    if driver:
+        remember(site, driver=driver_leaf(driver))
     script_name = f"{mode}.ps1"
     go = render("go.cmd", SCRIPT=script_name)
     return render(
@@ -239,6 +252,13 @@ def bake_push(site: int, driver: str, cleanup: bool, name: str | None, force: bo
         SOE_SCRIPT=soe_script,
         GO_CMD=go,
     )
+
+
+def bake_tidy(site: int, name: str, driver: str) -> str:
+    d = derive(site)
+    leaf = driver_leaf(driver) or _site_rec(site).get("driver", "")
+    return render("tidy.ps1", SITE=site, NAME=ps_quote(name), IP_SOE=d["ip_soe"],
+                  DRIVER=ps_quote(leaf), STATIC_UNC=ps_quote(STATIC_UNC))
 
 
 # --------------------------------------------------------------------------- clipboard
@@ -279,6 +299,17 @@ def cmd_verify(site: int, name: str | None) -> None:
     pbcopy(bake_verify(site, info["name"]))
     print(f"verify payload for site {site} {info['name']} on clipboard - paste on RHS02 after the SOE reboot.")
     print(f"It also copies the SOE summary to {STATIC_UNC}\\soefix-logs\\{site}.txt (= {LOGS_IN}) - then: soefix log {site}")
+
+
+def cmd_tidy(site: int, name: str | None, driver: str) -> None:
+    info = store_info(site, name)
+    payload = bake_tidy(site, info["name"], driver)
+    pbcopy(payload)
+    leaf = driver_leaf(driver) or _site_rec(site).get("driver", "")
+    print(f"tidy payload for site {site} {info['name']} on clipboard - paste on RHS02 as the LAST step")
+    print("(after the thin-client printer - it copies the driver from the SOE's C:\\Temp).")
+    print(f"Removes: RHS02 C:\\SOE_Backup; SOE C:\\Temp\\soefix, {'C:\\Temp\\' + leaf if leaf else '(no driver folder recorded)'}, "
+          "C:\\Helpdesk\\soe_fixup_summary.txt, generatekvs.exe.2015.bak.")
 
 
 def cmd_list() -> None:
@@ -385,6 +416,8 @@ def main() -> None:
         cmd_push(site_arg(), driver, cleanup, name, force)
     elif cmd == "verify":
         cmd_verify(site_arg(), name)
+    elif cmd == "tidy":
+        cmd_tidy(site_arg(), name, driver)
     elif cmd.isdigit():
         die(f"the one-paste cleanup is gone - use:  soefix push {cmd} --cleanup   (or restore/push/verify for a conversion)")
     else:

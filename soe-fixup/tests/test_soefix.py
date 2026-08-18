@@ -223,3 +223,31 @@ def test_missing_sheet_config_dies(monkeypatch):
     monkeypatch.setattr(soefix, "SHEET", None)
     with pytest.raises(SystemExit):
         soefix.load_stores()
+
+
+# ---------------------------------------------------------------- tidy
+def test_bake_tidy_uses_remembered_driver(monkeypatch, tmp_path):
+    monkeypatch.setattr(soefix, "SITES", tmp_path / "sites.json")
+    monkeypatch.setattr(soefix, "IP_OVERRIDE", None)
+    monkeypatch.setattr(soefix, "load_stores", lambda: ([], 0))
+    soefix.bake_push(27, r"X:\Certeq\Printer Drivers", False, None, False)   # records driver leaf
+    assert soefix._site_rec(27) == {"driver": "Printer Drivers"}
+    t = soefix.bake_tidy(27, "X", "")
+    assert first_code_line(t) == "& {"
+    assert "$driver   = 'Printer Drivers'" in t and "10.56.27.1" in t
+    for must in ("Temp\\soefix", "SOE_Backup", "soe_fixup_summary.txt", "generatekvs.exe.2015.bak"):
+        assert must in t
+    assert "Read-Host" not in t
+    # explicit --driver wins; nothing recorded -> empty
+    assert "$driver   = 'Other'" in soefix.bake_tidy(27, "X", "Other")
+    assert "$driver   = ''" in soefix.bake_tidy(28, "X", "")
+
+
+def test_sites_json_backcompat(monkeypatch, tmp_path):
+    f = tmp_path / "sites.json"
+    f.write_text('{"310": "10.56.55.1"}')          # old format: bare ip
+    monkeypatch.setattr(soefix, "SITES", f)
+    monkeypatch.setattr(soefix, "IP_OVERRIDE", None)
+    assert soefix.derive(310)["ip_soe"] == "10.56.55.1"
+    soefix.remember(310, driver="Printer Drivers")
+    assert soefix._site_rec(310) == {"ip": "10.56.55.1", "driver": "Printer Drivers"}
