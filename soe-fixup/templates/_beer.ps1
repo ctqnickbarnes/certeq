@@ -9,7 +9,7 @@ $script:BeerTitle = ''
 $script:MugOn     = $false
 $script:MugH      = 8      # inner rows (beer height)
 $script:MugW      = 14     # inner width
-$script:PanelRows = 12     # separator + foam head + 8 inner + base + label
+$script:PanelRows = 13     # separator + 2 head rows + 8 inner + base + label
 $script:ESC       = [string][char]27
 function Enable-VT {
     # Windows PowerShell 5.1 doesn't turn on VT processing for a -File run; do it via kernel32.
@@ -42,7 +42,28 @@ function Init-Beer([string]$title, [int]$total) {
         Write-Mug 0 0 ''
     } catch { $script:MugOn = $false }
 }
-function Get-BeerColor([string]$name) { return [System.ConsoleColor]$name }
+function Get-FoamRow([int]$w, [int]$tick, [switch]$Light) {
+    # a row of foam: dense (mostly medium shade, a few light gaps) or light (airy, with bubbles); shifts with $tick
+    $dk = [string][char]0x2592; $lt = [string][char]0x2591; $deg = [string][char]0xB0
+    $dense = @($dk, $dk, $lt, $dk, $dk, $dk, $lt, $dk, $dk, $lt, $dk)
+    $airy  = @($lt, $lt, ' ', $lt, 'o', $lt, $lt, ' ', $lt, $deg, $lt)
+    $s = ''
+    for ($c = 0; $c -lt $w; $c++) {
+        $r = ($c * 7 + $tick * 3 + ($c % 3)) % 11
+        if ($Light) { $s += $airy[$r] } else { $s += $dense[$r] }
+    }
+    return $s
+}
+function Get-HeadRows([int]$w, [int]$tick) {
+    # the head over the rim when the mug is full: a domed, bubbling cap slightly wider than the glass
+    $deg = [string][char]0xB0
+    $bub = @('o', 'O', $deg, 'o', $deg, 'O', 'o', 'O', $deg)
+    $dome = ''
+    for ($c = 0; $c -lt ($w - 2); $c++) { $dome += @('o', 'O', 'o', '-')[($c + $tick) % 4] }
+    $cap = ''
+    for ($c = 0; $c -lt ($w + 2); $c++) { $cap += $bub[($c * 5 + $tick) % $bub.Count] }
+    return @(('   .-' + $dome + '-.'), ('  (' + $cap + ')'))
+}
 function Write-Mug([double]$frac, [int]$tick, [string]$label) {
     if (-not $script:MugOn) { return }
     if ($frac -lt 0) { $frac = 0 }; if ($frac -gt 1) { $frac = 1 }
@@ -50,28 +71,34 @@ function Write-Mug([double]$frac, [int]$tick, [string]$label) {
     $fill  = [int][Math]::Round($H * $frac)
     $beer  = [string][char]0x2588
     $shine = [string][char]0x2593
-    $foamC = [string](@([char]0x2592, [char]0x2591)[$tick % 2])
     $hline = [string][char]0x2500
     # each line = array of (text, color) pairs; ArrayList.Add keeps the nesting PowerShell would flatten
     $art = New-Object System.Collections.ArrayList
-    if ($fill -ge $H) {
-        $head = @('.-', "'-")[$tick % 2]
-        [void]$art.Add(@(,@(("  " + $head + ('~' * $W) + "-." + '   '), 'White')))
+    $full = ($fill -ge $H)
+    if ($full) {
+        foreach ($hr in (Get-HeadRows $W $tick)) { [void]$art.Add(@(,@($hr.PadRight($W + 9), 'White'))) }
+        $fill = $H - 1          # top inner row is the base of the head, not beer
     } else {
+        [void]$art.Add(@(,@((' ' * ($W + 9)), 'Gray')))
         [void]$art.Add(@(,@((' ' * ($W + 9)), 'Gray')))
     }
     for ($i = 1; $i -le $H; $i++) {
         $fromBottom = $H - $i + 1
         $segs = @(,@('  |', 'Gray'))
-        if ($fromBottom -le $fill) {
+        if ($full -and $i -eq 1) {
+            $segs += ,@((Get-FoamRow $W $tick), 'White')                       # dense foam under the head
+        } elseif ($fromBottom -le $fill) {
             $segs += ,@($shine, 'Yellow')                     # glass reflection
             $body = $W - 1
             if ($tick -gt 0 -and (($i + $tick) % 3) -eq 0) {
                 $pos = ($tick * 7 + $i * 5) % $body
                 $segs += ,@(($beer * $pos), 'DarkYellow'); $segs += ,@('o', 'Yellow'); $segs += ,@(($beer * ($body - $pos - 1)), 'DarkYellow')
             } else { $segs += ,@(($beer * $body), 'DarkYellow') }
-        } elseif ($fill -gt 0 -and $fromBottom -eq ($fill + 1)) { $segs += ,@(($foamC * $W), 'White') }
-        else { $segs += ,@((' ' * $W), 'Gray') }
+        } elseif ($fill -gt 0 -and $fromBottom -eq ($fill + 1)) {
+            $segs += ,@((Get-FoamRow $W $tick), 'White')                       # dense foam on the beer
+        } elseif ($fill -gt 0 -and $fromBottom -eq ($fill + 2)) {
+            $segs += ,@((Get-FoamRow $W $tick -Light), 'Gray')                 # airy foam above it
+        } else { $segs += ,@((' ' * $W), 'Gray') }
         $segs += ,@('|', 'Gray')
         switch ($i) {
             2 { $segs += ,@('___ ', 'Gray') }
