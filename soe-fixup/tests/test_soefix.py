@@ -109,6 +109,10 @@ def test_bake_soe_convert():
     # without --driver the step is still there, just manual - same pause
     s2 = soefix.bake_soe("convert", INFO, "", "10.56.27.93")
     assert "done by hand" in s2 and "[SKIP] Driver" not in s2
+    # printui + the pause happen unconditionally, after the driver block
+    for script in (s, s2):
+        assert script.count("Start-Process -FilePath 'printui.exe'") == 1
+        assert script.index("printui.exe") < script.index("Press Enter here once the driver is listed") < script.index("# --- 3.")
 
 
 def test_convert_driver_uses_leaf_name():
