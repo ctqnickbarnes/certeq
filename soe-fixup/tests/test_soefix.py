@@ -81,7 +81,7 @@ def test_bake_verify():
     assert first_code_line(p) == "& {"
     assert "10.56.27.1" in p and "\\c$" in p
     assert "soefix-logs\\27.txt" in p
-    assert "DT Ranking Reboot" in p and "SOE_Reboot_eOPS.exe" in p
+    assert "'DT Ranking Reboot*'" in p and "SOE_Reboot_eOPS.exe" in p   # not 'DT Ranking*' (DTBrowser shortcut)
     assert "O''Neil Store" in p
     assert "Read-Host" not in p
 

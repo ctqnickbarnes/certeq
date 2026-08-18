@@ -33,7 +33,8 @@ if (-not (Test-Path "$c\Users")) {
     $lnks = @()
     $exes = @()
     foreach ($d in $desktops) {
-        $lnks += @(Get-ChildItem $d -Filter '*.lnk' -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'DT Ranking*' })
+        # only the GP-deployed reboot shortcut; 'DT Ranking.lnk' (DTBrowser) is a different, legitimate shortcut
+        $lnks += @(Get-ChildItem $d -Filter '*.lnk' -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'DT Ranking Reboot*' })
         $exes += @(Get-ChildItem $d -Filter 'SOE_Reboot_eOPS.exe' -ErrorAction SilentlyContinue)
     }
     if ($lnks.Count -eq 0) {
