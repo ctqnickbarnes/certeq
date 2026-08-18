@@ -27,7 +27,7 @@ if (Test-Connection -ComputerName $soeIp -Count 2 -Quiet) {
 
 # --- 2. desktop: shortcut present, targets Tools exe, no real exe ---------------
 if (-not (Test-Path "$c\Users")) {
-    $lines += "[FAIL] Desktop:       cannot open $c\Users - paste in a NORMAL (non-elevated) PowerShell, or: net use \\$soeIp\c`$ /user:Administrator"
+    $lines += "[FAIL] Desktop:       cannot open $c\Users - paste in a NORMAL (non-elevated) PowerShell, or: net use \\$soeIp\c`$ /user:NZ0<site>SOE01\Administrator"
 } else {
     $desktops = @(Get-ChildItem "$c\Users" | Where-Object { $_.PSIsContainer } | ForEach-Object { Join-Path $_.FullName 'Desktop' } | Where-Object { Test-Path $_ })
     $lnks = @()

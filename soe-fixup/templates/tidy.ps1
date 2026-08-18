@@ -30,7 +30,7 @@ if (-not $soeHost) { $soeHost = $soeIp }
 $c = "\\$soeHost\c$"
 
 if (-not (Test-Path "$c\Temp")) {
-    $lines += "[FAIL] SOE:           cannot open $c - nothing removed (paste in a NORMAL PowerShell, or: net use \\$soeIp\c`$ /user:Administrator)"
+    $lines += "[FAIL] SOE:           cannot open $c - nothing removed (paste in a NORMAL PowerShell, or: net use \\$soeIp\c`$ /user:NZ0<site>SOE01\Administrator)"
 } else {
     # keep a copy of the summary/transcript on the Mac before deleting them (verify normally did this)
     $sum = "$c\Temp\soefix\summary.txt"

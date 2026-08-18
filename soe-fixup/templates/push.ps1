@@ -47,7 +47,7 @@ $c   = "\\$soeHost\c$"
 $e   = "\\$soeHost\e$"
 $cOk = Test-Path $c
 $eOk = Test-Path $e
-if ($cOk) { $lines += "[PASS] Share c`$:      $c" } else { $lines += "[FAIL] Share c`$:      cannot open $c - paste in a NORMAL (non-elevated) PowerShell, or: net use \\$soeIp\c`$ /user:Administrator" }
+if ($cOk) { $lines += "[PASS] Share c`$:      $c" } else { $lines += "[FAIL] Share c`$:      cannot open $c - paste in a NORMAL (non-elevated) PowerShell, or: net use \\$soeIp\c`$ /user:NZ0<site>SOE01\Administrator" }
 if ($eOk) { $lines += "[PASS] Share e`$:      $e" } else { $lines += "[FAIL] Share e`$:      cannot open $e" }
 if (Test-Path (Join-Path $stat 'generatekvs.exe')) {
     $lines += "[PASS] tsclient:      $stat"

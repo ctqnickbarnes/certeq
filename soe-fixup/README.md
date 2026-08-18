@@ -53,6 +53,11 @@ in a local `sites.json`, so `verify 310` / `tidy 310` don't need it again.
 a path under `X:\`, or a full `X:\...` / UNC path; the SOE gets it as `C:\Temp\<last folder>`.
 `soefix restore` prints the folder list two levels deep so you can copy the name.
 
+If a push/verify/tidy paste can't open `\\10.56.N.1\c$` (elevated console, or the SOE
+only accepts its own local admin), it tries the hostname and then prompts for the SOE's
+`NZ0<site>SOE01\Administrator` password; the manual equivalent is
+`net use \\10.56.N.1\c$ /user:NZ0<site>SOE01\Administrator` before pasting.
+
 Driver by hand (step 6 without `--driver`): when the script pauses, browse
 `\\10.56.N.93\x$\Certeq` from the SOE and copy the printer's driver folder to
 `C:\Temp` (extract if needed); in the printui window it opened: Drivers > Add >

@@ -7,7 +7,9 @@ function Connect-Soe($ip, $site) {
     Write-Host "Cannot open \\$ip\c$ with this session's credentials (elevated console? different account on the SOE)." -ForegroundColor Yellow
     Write-Host 'Enter the SOE Administrator login in the dialog (Cancel to skip):' -ForegroundColor Yellow
     $cred = $null
-    try { $cred = Get-Credential -Message "SOE $ip - Administrator login" -UserName 'Administrator' } catch { }
+    # local SOE account, host-qualified (a bare 'Administrator' would be taken as a domain account from RHS02)
+    $user = ('NZ{0:D5}SOE01\Administrator' -f [int]$site)
+    try { $cred = Get-Credential -Message "SOE $ip - local Administrator login" -UserName $user } catch { }
     if ($cred) {
         $pw = $cred.GetNetworkCredential().Password
         foreach ($n in $names) {
