@@ -75,11 +75,17 @@ def first_code_line(p: str) -> str:
     return next(l for l in p.splitlines() if l.strip() and not l.startswith("#"))
 
 
+def read_host_calls(p: str) -> list[str]:
+    """Read-Host uses outside the Read-Beer helper (RHS02 pastes must have none)."""
+    return [l for l in p.splitlines()
+            if "Read-Host" in l and not l.strip().startswith("#") and "$ans = Read-Host $prompt" not in l]
+
+
 def test_bake_restore():
     p = soefix.bake_restore(27)
     assert first_code_line(p) == "& {"
     assert "10.56.27.1" in p and "SOE_Server2022_Restore.exe" in p and "X:\\Certeq" in p
-    assert "Read-Host" not in p
+    assert read_host_calls(p) == []
     assert "{{" not in p
 
 
@@ -90,7 +96,7 @@ def test_bake_verify():
     assert "soefix-logs\\27.txt" in p
     assert "'DT Ranking Reboot*'" in p and "SOE_Reboot_eOPS.exe" in p   # not 'DT Ranking*' (DTBrowser shortcut)
     assert "O''Neil Store" in p
-    assert "Read-Host" not in p
+    assert read_host_calls(p) == []
 
 
 # ---------------------------------------------------------------- SOE scripts
@@ -265,6 +271,19 @@ def test_soe_scripts_have_beer_progress():
         assert "{{" not in s and s.isascii()          # block chars come from [char] codes
 
 
+def test_rhs02_payloads_have_beer_progress(monkeypatch):
+    monkeypatch.setattr(soefix, "load_stores", lambda: ([], 0))
+    monkeypatch.setattr(soefix, "IP_OVERRIDE", "10.56.190.1")
+    for name, p, total in (("restore", soefix.bake_restore(443), 4), ("push", soefix.bake_push(443, "X", False, None, False), 6),
+                           ("verify", soefix.bake_verify(443, "X"), 3), ("tidy", soefix.bake_tidy(443, "X"), 3)):
+        assert "function Init-Beer" in p and "Finish-Beer" in p, name
+        assert f'" {total}   #' in p, name
+        assert read_host_calls(p) == [], name   # RHS02 pastes stay non-interactive
+    # push counts the driver step in both modes so the mug fills evenly
+    push = soefix.bake_push(443, "X", False, None, False)
+    assert push.count("Show-Beer 'Driver folder'") == 2
+
+
 # ---------------------------------------------------------------- tidy
 def test_bake_tidy(monkeypatch, tmp_path):
     monkeypatch.setattr(soefix, "SITES", tmp_path / "sites.json")
@@ -280,7 +299,7 @@ def test_bake_tidy(monkeypatch, tmp_path):
     # only soefix's own files are ever removed: never the driver folder, Maxtel, JRE or RHS02's backup copy
     removed = re.findall(r"Remove-Artefact\s+(\S+)", t)
     assert removed == ['"$c\\Temp\\soefix"', '"$c\\Helpdesk\\soe_fixup_summary.txt"', '"$c\\Helpdesk\\tools\\generatekvs.exe.2015.bak"'], removed
-    assert "Read-Host" not in t
+    assert read_host_calls(t) == []
 
 
 def test_sites_json_backcompat(monkeypatch, tmp_path):

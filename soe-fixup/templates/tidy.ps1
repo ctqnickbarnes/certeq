@@ -11,6 +11,7 @@ $logDir   = '{{STATIC_UNC}}\soefix-logs'
 $lines    = @()
 
 {{CONNECT}}
+{{BEER}}
 function Remove-Artefact($path, $label) {
     if (-not (Test-Path $path)) { $script:lines += "[PASS] $label already gone ($path)"; return }
     try {
@@ -22,9 +23,11 @@ function Remove-Artefact($path, $label) {
     }
 }
 
+Init-Beer "SOE tidy - site $site $siteName - SOE $soeIp" 3   # connect, keep summary, remove
 Write-Host ''
 Write-Host "SOE tidy - site $site $siteName - SOE $soeIp" -ForegroundColor Cyan
 Write-Host ''
+Show-Beer 'Connect'
 $soeHost = Connect-Soe $soeIp $site
 if (-not $soeHost) { $soeHost = $soeIp }
 $c = "\\$soeHost\c$"
@@ -33,6 +36,7 @@ if (-not (Test-Path "$c\Temp")) {
     $lines += "[FAIL] SOE:           cannot open $c - nothing removed (paste in a NORMAL PowerShell, or: net use \\$soeIp\c`$ /user:NZ0<site>SOE01\Administrator)"
 } else {
     # keep a copy of the summary/transcript on the Mac before deleting them (verify normally did this)
+    Show-Beer 'Keep the summary'
     $sum = "$c\Temp\soefix\summary.txt"
     if (Test-Path $sum) {
         try {
@@ -45,6 +49,7 @@ if (-not (Test-Path "$c\Temp")) {
             $lines += "[FAIL] Summary:       could not copy to $logDir ($($_.Exception.Message)) - NOT deleting C:\Temp\soefix"
         }
     }
+    Show-Beer 'Remove soefix files'
     if (-not ($lines -like '*NOT deleting*')) {
         Remove-Artefact "$c\Temp\soefix" 'SOE C:\Temp\soefix'
     }
@@ -62,4 +67,5 @@ foreach ($l in $lines) {
     else { Write-Host $l -ForegroundColor Green }
 }
 Write-Host ''
+Finish-Beer 'Tidy done - cheers'
 }

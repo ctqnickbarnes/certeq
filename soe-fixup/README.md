@@ -45,6 +45,13 @@ and open the PSM `.rdp` in mstsc with *Local Resources > Drives* ticked.
 Three pastes (2, 5, 12), one typed line on the SOE (6); every step prints
 `[PASS]/[FAIL]` and never aborts, so read the summary before moving on.
 
+Every script shows a status panel pinned to the bottom of the console (a beer mug
+that fills per step and pours while an installer/copy runs, with the current step
+and elapsed time beside it); the log scrolls above it. It needs a window at least
+70 columns wide, otherwise it stays out of the way. While the panel is up, lines
+that scroll off the top of the text area are not in the console scrollback - the
+transcript (`C:\Temp\soefix\transcript.txt`, pulled back by verify) has everything.
+
 Sites above 255 (e.g. 310) can't use `10.56.<site>.x` - pass the SOE address:
 `soefix push 310 --ip 10.56.55.1 ...` (RHS02 is assumed to be `.93` on that subnet). It's remembered
 in a local `sites.json` (so is `--name`), so `verify 310` / `tidy 310` don't need them again.

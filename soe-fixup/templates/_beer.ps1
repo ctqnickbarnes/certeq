@@ -148,19 +148,25 @@ function Show-Beer([string]$label) {
     $script:BeerStep++
     Write-Mug (($script:BeerStep - 1) / $script:BeerTotal) 0 $label
 }
+function Test-BeerDone($p) {
+    if (-not $p) { return $true }
+    if ($p -is [System.Diagnostics.Process]) { try { return $p.HasExited } catch { return $true } }
+    if ($p.PSObject.Properties['State']) { return -not ($p.State -eq 'Running' -or $p.State -eq 'NotStarted') }   # a Job
+    return $true
+}
 function Wait-Beer($proc, [string]$label) {
-    # pour while $proc runs; returns its exit code
+    # pour while $proc (a Process or a Job) runs; returns the process exit code ($null for jobs)
     $base  = ($script:BeerStep - 1) / $script:BeerTotal
     $slice = 1 / $script:BeerTotal
     $tick  = 1
-    while ($proc -and -not $proc.HasExited) {
+    while (-not (Test-BeerDone $proc)) {
         $frac = $base + $slice * (1 - [Math]::Exp(-$tick / 60.0))
         Write-Mug $frac $tick $label
         Start-Sleep -Milliseconds 400
         $tick++
     }
     Write-Mug ($base + $slice) 0 $label
-    if ($proc) { try { return $proc.ExitCode } catch { return $null } }
+    if ($proc -is [System.Diagnostics.Process]) { try { return $proc.ExitCode } catch { return $null } }
     return $null
 }
 function Read-Beer([string]$prompt) {
