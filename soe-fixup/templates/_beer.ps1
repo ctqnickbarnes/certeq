@@ -1,87 +1,88 @@
 # --- beer progress -------------------------------------------------------------
-# A mug that fills from the bottom as the steps complete and pours (rising bubbles,
-# bubbling foam) while we wait on a process. Redrawn in place; ASCII source - the glyphs
-# come from [char] codes.
+# One mug, parked in the top-right corner of the console window; the log scrolls underneath.
+# It fills from the bottom as steps complete and pours (bubbles, flickering foam) while we
+# wait on a process. Drawn with [Console] calls, so it never lands in the transcript and is
+# never re-printed inline. If there is no real console it stays silent.
 $script:BeerStep  = 0
 $script:BeerTotal = 1
-$script:MugTop    = -1
 $script:MugH      = 6      # inner rows (beer height)
 $script:MugW      = 12     # inner width
-function Write-Mug([double]$frac, [int]$tick, [string]$label, [switch]$InPlace) {
+$script:MugRows   = @()    # absolute buffer rows currently occupied by the mug (to wipe when it moves)
+$script:MugCol    = 0
+function Write-Mug([double]$frac, [int]$tick, [string]$label) {
     if ($frac -lt 0) { $frac = 0 }; if ($frac -gt 1) { $frac = 1 }
     $H = $script:MugH; $W = $script:MugW
     $fill  = [int][Math]::Round($H * $frac)
     $beer  = [string][char]0x2588
     $foamC = [string](@([char]0x2592, [char]0x2591)[$tick % 2])
-    $blank = ' ' * $W
-    $saved = $null
-    try {
-        if ($InPlace -and $script:MugTop -ge 0) {
-            $saved = @([Console]::CursorLeft, [Console]::CursorTop)
-            [Console]::SetCursorPosition(0, $script:MugTop)
-        } else {
-            $script:MugTop = [Console]::CursorTop
-        }
-    } catch { $script:MugTop = -1 }
-    # rim / overflow row
-    if ($fill -ge $H) { Write-Host ('   ' + ($foamC * ($W + 2)) + '    ') -ForegroundColor White }
-    else              { Write-Host ('   ' + ' ' * ($W + 2) + '    ') }
+    # each line = array of (text, color) pairs; ArrayList.Add keeps the nesting PowerShell would otherwise flatten
+    $lines = New-Object System.Collections.ArrayList
+    if ($fill -ge $H) { [void]$lines.Add(@(,@(('  ' + ($foamC * ($W + 2)) + ' '), 'White'))) }
+    else              { [void]$lines.Add(@(,@((' ' * ($W + 5)), 'Gray'))) }
     for ($i = 1; $i -le $H; $i++) {
         $fromBottom = $H - $i + 1
-        Write-Host '   |' -NoNewline -ForegroundColor Gray
+        $segs = @(,@('|', 'Gray'))
         if ($fromBottom -le $fill) {
-            # beer, with a rising bubble while pouring
-            $row = $beer * $W
             if ($tick -gt 0 -and (($i + $tick) % 3) -eq 0) {
                 $pos = ($tick * 7 + $i * 5) % $W
-                Write-Host ($beer * $pos) -NoNewline -ForegroundColor DarkYellow
-                Write-Host 'o' -NoNewline -ForegroundColor Yellow
-                Write-Host ($beer * ($W - $pos - 1)) -NoNewline -ForegroundColor DarkYellow
-            } else {
-                Write-Host $row -NoNewline -ForegroundColor DarkYellow
-            }
-        } elseif ($fill -gt 0 -and $fromBottom -eq ($fill + 1)) {
-            Write-Host ($foamC * $W) -NoNewline -ForegroundColor White
-        } else {
-            Write-Host $blank -NoNewline
-        }
-        Write-Host '|' -NoNewline -ForegroundColor Gray
-        # handle on rows 2-4
-        switch ($i) {
-            2 { Write-Host '--.' -NoNewline -ForegroundColor Gray }
-            3 { Write-Host '  |' -NoNewline -ForegroundColor Gray }
-            4 { Write-Host "--'" -NoNewline -ForegroundColor Gray }
-            default { Write-Host '   ' -NoNewline }
-        }
-        Write-Host ' '
+                $segs += ,@(($beer * $pos), 'DarkYellow'); $segs += ,@('o', 'Yellow'); $segs += ,@(($beer * ($W - $pos - 1)), 'DarkYellow')
+            } else { $segs += ,@(($beer * $W), 'DarkYellow') }
+        } elseif ($fill -gt 0 -and $fromBottom -eq ($fill + 1)) { $segs += ,@(($foamC * $W), 'White') }
+        else { $segs += ,@((' ' * $W), 'Gray') }
+        $segs += ,@('|', 'Gray')
+        switch ($i) { 2 { $segs += ,@('--.', 'Gray') } 3 { $segs += ,@('  |', 'Gray') } 4 { $segs += ,@("--'", 'Gray') } default { $segs += ,@('   ', 'Gray') } }
+        [void]$lines.Add($segs)
     }
-    Write-Host ("   '" + ('-' * $W) + "'   ") -ForegroundColor Gray
-    Write-Host ("   {0,3}%  {1}" -f [int](100 * $frac), $label).PadRight(60) -ForegroundColor Yellow
-    if ($saved) { try { [Console]::SetCursorPosition($saved[0], $saved[1]) } catch { } }
+    [void]$lines.Add(@(,@(("'" + ('-' * $W) + "'   "), 'Gray')))
+    [void]$lines.Add(@(,@(((("{0,3}% {1}" -f [int](100 * $frac), $label)).PadRight($W + 5).Substring(0, $W + 5)), 'Yellow')))
+    try {
+        $winW = [Console]::WindowWidth
+        $col  = $winW - ($W + 6)
+        if ($col -lt 40) { return }               # console too narrow - skip the mug rather than clobber the log
+        $top  = [Console]::WindowTop + 1
+        $cl = [Console]::CursorLeft; $ct = [Console]::CursorTop
+        $fg = [Console]::ForegroundColor
+        # wipe the old position if the window has scrolled since the last draw
+        if ($script:MugRows.Count -gt 0 -and ($script:MugRows[0] -ne $top -or $script:MugCol -ne $col)) {
+            foreach ($r in $script:MugRows) {
+                if ($r -ge [Console]::WindowTop -and $r -lt ([Console]::WindowTop + [Console]::WindowHeight)) {
+                    [Console]::SetCursorPosition($script:MugCol, $r); [Console]::Write(' ' * ($W + 5))
+                }
+            }
+        }
+        $rows = @()
+        for ($n = 0; $n -lt $lines.Count; $n++) {
+            $r = $top + $n
+            if ($r -ge [Console]::BufferHeight) { break }
+            [Console]::SetCursorPosition($col, $r)
+            foreach ($seg in $lines[$n]) { [Console]::ForegroundColor = $seg[1]; [Console]::Write($seg[0]) }
+            $rows += $r
+        }
+        $script:MugRows = $rows; $script:MugCol = $col
+        [Console]::ForegroundColor = $fg
+        [Console]::SetCursorPosition($cl, $ct)
+    } catch { }
 }
 function Show-Beer([string]$label) {
-    # call at the start of each step: draws a fresh mug at the current level
+    # call at the start of each step: the mug shows the level reached so far
     $script:BeerStep++
-    Write-Host ''
-    Write-Mug (($script:BeerStep - 1) / $script:BeerTotal) 0 ("step {0}/{1}  {2}" -f $script:BeerStep, $script:BeerTotal, $label)
+    Write-Mug (($script:BeerStep - 1) / $script:BeerTotal) 0 ("{0}/{1} {2}" -f $script:BeerStep, $script:BeerTotal, $label)
 }
 function Wait-Beer($proc, [string]$label) {
-    # pour into the mug drawn by Show-Beer while $proc runs; returns its exit code
+    # pour while $proc runs; returns its exit code
     $base  = ($script:BeerStep - 1) / $script:BeerTotal
     $slice = 1 / $script:BeerTotal
     $tick  = 1
     while ($proc -and -not $proc.HasExited) {
         $frac = $base + $slice * (1 - [Math]::Exp(-$tick / 60.0))
-        Write-Mug $frac $tick ("pouring  {0}" -f $label) -InPlace
+        Write-Mug $frac $tick $label
         Start-Sleep -Milliseconds 400
         $tick++
     }
-    Write-Mug ($base + $slice) 0 ("{0} - done" -f $label) -InPlace
+    Write-Mug ($base + $slice) 0 $label
     if ($proc) { try { return $proc.ExitCode } catch { return $null } }
     return $null
 }
 function Finish-Beer([string]$label) {
-    Write-Host ''
     Write-Mug 1 1 $label
-    Write-Host ''
 }
