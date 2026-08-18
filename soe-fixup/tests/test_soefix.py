@@ -1,4 +1,5 @@
 import pathlib
+import re
 import sys
 
 import pytest
@@ -244,9 +245,9 @@ def test_bake_tidy(monkeypatch, tmp_path):
     assert "10.56.27.1" in t
     for must in ("Temp\\soefix", "soe_fixup_summary.txt", "generatekvs.exe.2015.bak"):
         assert must in t
-    # only soefix's own files: never the driver folder, Maxtel, JRE or RHS02's backup copy
-    for never in ("Remove-Artefact 'C:\\SOE_Backup'", "Printer Drivers", "Maxtel", "jre-7u1"):
-        assert never not in t
+    # only soefix's own files are ever removed: never the driver folder, Maxtel, JRE or RHS02's backup copy
+    removed = re.findall(r"Remove-Artefact\s+(\S+)", t)
+    assert removed == ['"$c\\Temp\\soefix"', '"$c\\Helpdesk\\soe_fixup_summary.txt"', '"$c\\Helpdesk\\tools\\generatekvs.exe.2015.bak"'], removed
     assert "Read-Host" not in t
 
 
