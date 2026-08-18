@@ -11,9 +11,12 @@ $expected = 'E:\Ghost Images\Waystation\Tools\SOE_Reboot_eOPS.exe'
 $lines    = @()
 
 {{CONNECT}}
+{{BEER}}
+Init-Beer "SOE verify - site $site $siteName - SOE $soeIp" 3   # ping, desktop, summary
 Write-Host ''
 Write-Host "SOE verify - site $site $siteName - SOE $soeIp" -ForegroundColor Cyan
 Write-Host ''
+Show-Beer 'Ping + connect'
 $soeHost = Connect-Soe $soeIp $site
 if (-not $soeHost) { $soeHost = $soeIp }
 $c = "\\$soeHost\c$"
@@ -26,6 +29,7 @@ if (Test-Connection -ComputerName $soeIp -Count 2 -Quiet) {
 }
 
 # --- 2. desktop: shortcut present, targets Tools exe, no real exe ---------------
+Show-Beer 'Desktop checks'
 if (-not (Test-Path "$c\Users")) {
     $lines += "[FAIL] Desktop:       cannot open $c\Users - paste in a NORMAL (non-elevated) PowerShell, or: net use \\$soeIp\c`$ /user:NZ0<site>SOE01\Administrator"
 } else {
@@ -61,6 +65,7 @@ if (-not (Test-Path "$c\Users")) {
 }
 
 # --- 3. bring the convert summary back to the Mac ---------------------------------
+Show-Beer 'Summary back home'
 $sum = "$c\Temp\soefix\summary.txt"
 if (Test-Path $sum) {
     try {
@@ -98,4 +103,5 @@ if ($lnks -eq $null -or $lnks.Count -eq 0) {
 Write-Host ''
 Write-Host 'Remaining manual checks: thin-client USB printer via Have Disk from C:\Temp, test page;' -ForegroundColor Yellow
 Write-Host 'then normal RDP to the VM SOE - printer shows as (redirected #), test page from the SOE.'
+Finish-Beer 'Verify done - cheers'
 }

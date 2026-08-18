@@ -20,6 +20,7 @@ $goCmd = @'
 '@
 
 {{CONNECT}}
+{{BEER}}
 function Resolve-X {
     if (Test-Path 'X:\') { return 'X:' }
     $m = (net use 2>$null) | Select-String -Pattern '\sX:\s+(\\\\\S+)'
@@ -34,11 +35,13 @@ function Write-Ascii($path, $text) {
     [IO.File]::WriteAllText($path, $t, [Text.Encoding]::ASCII)
 }
 
+Init-Beer "SOE push ($mode) - site $site $siteName - SOE $soeIp" 6   # reach, scripts, Maxtel, driver, generatekvs, JRE
 Write-Host ''
 Write-Host "SOE push ($mode) - site $site $siteName - SOE $soeIp" -ForegroundColor Cyan
 Write-Host ''
 
 # --- 0. reachability ----------------------------------------------------------
+Show-Beer 'Reach the SOE'
 if (Test-Connection -ComputerName $soeIp -Count 2 -Quiet) { $lines += "[PASS] Ping:          $soeIp replies" }
 else                                                       { $lines += "[FAIL] Ping:          $soeIp no reply (VM up? IP set?)" }
 $soeHost = Connect-Soe $soeIp $site
@@ -75,6 +78,7 @@ if (Test-Path (Join-Path $stat 'generatekvs.exe')) {
 
 if ($cOk) {
     # --- 1. drop the SOE script + launcher ------------------------------------
+    Show-Beer 'Scripts to the SOE'
     $dst = Join-Path $c 'Temp\soefix'
     try {
         if (-not (Test-Path $dst)) { New-Item -ItemType Directory -Path $dst -Force | Out-Null }
@@ -86,6 +90,7 @@ if ($cOk) {
         $lines += "[FAIL] Scripts:       $($_.Exception.Message)"
     }
 
+    Show-Beer 'Maxtel'
     if ($mode -eq 'convert') {
         # --- 2. Maxtel -> SOE E:\Ghost Images\Waystation\AppStore ---------------
         $mxDst = Join-Path $e 'Ghost Images\Waystation\AppStore'
@@ -110,6 +115,7 @@ if ($cOk) {
         }
 
         # --- 3. driver folder X:\Certeq\<driver> -> SOE C:\Temp\<driver> --------
+        Show-Beer 'Driver folder'
         if (-not $driver) {
             $lines += "[SKIP] Driver:        no --driver given (SOE script will skip the driver step)"
         } else {
@@ -137,7 +143,9 @@ if ($cOk) {
                     }
                 } else {
                     try {
-                        Copy-Item $dsrc (Join-Path $c 'Temp') -Recurse -Force
+                        $dj = Start-Job -ScriptBlock { Copy-Item $args[0] $args[1] -Recurse -Force } -ArgumentList $dsrc, (Join-Path $c 'Temp')
+                        Wait-Beer $dj 'Driver folder' | Out-Null
+                        Receive-Job $dj -ErrorAction Stop | Out-Null; Remove-Job $dj -Force
                         $n = @(Get-ChildItem (Join-Path (Join-Path $c 'Temp') $leaf) -Recurse | Where-Object { -not $_.PSIsContainer }).Count
                         $lines += "[PASS] Driver:        $dsrc ($n files) copied to SOE C:\Temp\$leaf"
                     } catch {
@@ -146,9 +154,12 @@ if ($cOk) {
                 }
             }
         }
+    } else {
+        Show-Beer 'Driver folder'    # not part of a cleanup push
     }
 
     # --- 4. generatekvs.exe (2025 build) ------------------------------------------
+    Show-Beer 'generatekvs.exe'
     $gkDst = Join-Path $c 'Helpdesk\tools\generatekvs.exe'
     $gkSrc = Join-Path $stat 'generatekvs.exe'
     $needGk = $true
@@ -178,6 +189,7 @@ if ($cOk) {
     }
 
     # --- 5. JRE installer, only if the SOE doesn't have it -------------------------
+    Show-Beer 'JRE installer'
     $jreDst = Join-Path $e 'Ghost Images\Waystation\AppStore\PLS\jre-7u1-windows-x64.exe'
     $jreSrc = Join-Path $stat 'jre-7u1-windows-x64.exe'
     if (-not $eOk) {
@@ -191,7 +203,10 @@ if ($cOk) {
         try {
             $jd = Split-Path $jreDst -Parent
             if (-not (Test-Path $jd)) { New-Item -ItemType Directory -Path $jd -Force | Out-Null }
-            Copy-Item $jreSrc $jreDst -Force
+            $jj = Start-Job -ScriptBlock { Copy-Item $args[0] $args[1] -Force } -ArgumentList $jreSrc, $jreDst
+            Wait-Beer $jj 'JRE installer' | Out-Null
+            Receive-Job $jj -ErrorAction Stop | Out-Null; Remove-Job $jj -Force
+            if (-not (Test-Path $jreDst)) { throw "copy finished but $jreDst is not there" }
             $lines += "[PASS] JRE installer: copied to SOE E:\Ghost Images\Waystation\AppStore\PLS"
         } catch {
             $lines += "[FAIL] JRE installer: $($_.Exception.Message)"
@@ -216,4 +231,5 @@ if ($cOk) {
 } else {
     Write-Host 'Fix the c$ share access first, then re-run this paste.' -ForegroundColor Red
 }
+Finish-Beer 'Push done - cheers'
 }
