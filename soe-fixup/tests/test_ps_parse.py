@@ -11,6 +11,12 @@ sys.path.insert(0, str(pathlib.Path(__file__).parents[1]))
 import soefix  # noqa: E402
 
 PWSH = shutil.which("pwsh")
+
+
+@pytest.fixture(autouse=True)
+def _isolated_sites(tmp_path, monkeypatch):
+    monkeypatch.setattr(soefix, "SITES", tmp_path / "sites.json")
+    monkeypatch.setattr(soefix, "IP_OVERRIDE", None)
 INFO = {"site": 27, "name": "Test's Store", "ref": "REF-1", "days": 44, "done": False}
 
 

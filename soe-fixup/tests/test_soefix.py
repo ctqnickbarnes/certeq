@@ -7,6 +7,13 @@ sys.path.insert(0, str(pathlib.Path(__file__).parents[1]))
 import soefix  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _isolated_sites(tmp_path, monkeypatch):
+    """Never let a test touch the real sites.json."""
+    monkeypatch.setattr(soefix, "SITES", tmp_path / "sites.json")
+    monkeypatch.setattr(soefix, "IP_OVERRIDE", None)
+
+
 def test_derive():
     assert soefix.derive(27) == {"site": 27, "ip_rhs": "10.56.27.93", "ip_soe": "10.56.27.1"}
 
