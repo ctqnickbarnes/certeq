@@ -1,64 +1,117 @@
 # --- beer progress -------------------------------------------------------------
-# One mug, parked in the top-right corner of the console window; the log scrolls underneath.
-# It fills from the bottom as steps complete and pours (bubbles, flickering foam) while we
-# wait on a process. Drawn with [Console] calls, so it never lands in the transcript and is
-# never re-printed inline. If there is no real console it stays silent.
+# A status panel pinned to the BOTTOM of the console: a mug that fills as steps complete
+# and pours (bubbles, flickering foam) while we wait, with the step/label/elapsed next to it.
+# The log scrolls in the rows above it (VT scroll region). Drawn via [Console] calls so it
+# never lands in the transcript. Silent if the console is too small or VT can't be enabled.
 $script:BeerStep  = 0
 $script:BeerTotal = 1
-$script:MugH      = 6      # inner rows (beer height)
-$script:MugW      = 12     # inner width
-$script:MugRows   = @()    # absolute buffer rows currently occupied by the mug (to wipe when it moves)
-$script:MugCol    = 0
+$script:BeerTitle = ''
+$script:MugOn     = $false
+$script:MugH      = 8      # inner rows (beer height)
+$script:MugW      = 14     # inner width
+$script:PanelRows = 12     # separator + foam head + 8 inner + base + label
+$script:ESC       = [string][char]27
+function Enable-VT {
+    # Windows PowerShell 5.1 doesn't turn on VT processing for a -File run; do it via kernel32.
+    if ($env:OS -ne 'Windows_NT') { return $true }
+    try {
+        if (-not ('SoeFixVT' -as [type])) {
+            $def = '[DllImport("kernel32.dll", SetLastError=true)] public static extern IntPtr GetStdHandle(int h);' + "`n" +
+                   '[DllImport("kernel32.dll", SetLastError=true)] public static extern bool GetConsoleMode(IntPtr h, out uint m);' + "`n" +
+                   '[DllImport("kernel32.dll", SetLastError=true)] public static extern bool SetConsoleMode(IntPtr h, uint m);'
+            Add-Type -Name SoeFixVT -Namespace Win32 -MemberDefinition $def -ErrorAction Stop | Out-Null
+        }
+        $h = [Win32.SoeFixVT]::GetStdHandle(-11)
+        $m = [uint32]0
+        if (-not [Win32.SoeFixVT]::GetConsoleMode($h, [ref]$m)) { return $false }
+        return [Win32.SoeFixVT]::SetConsoleMode($h, ($m -bor 4))   # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+    } catch { return $false }
+}
+function Init-Beer([string]$title, [int]$total) {
+    $script:BeerTitle = $title
+    $script:BeerTotal = [Math]::Max(1, $total)
+    $script:BeerStep  = 0
+    try {
+        if ([Console]::WindowWidth -lt 70 -or [Console]::WindowHeight -lt ($script:PanelRows + 8)) { return }
+        if (-not (Enable-VT)) { return }
+        Clear-Host
+        $bottom = [Console]::WindowHeight - $script:PanelRows      # last text row (1-based, viewport)
+        [Console]::Write($script:ESC + '[1;' + $bottom + 'r')          # scroll region = rows 1..bottom
+        [Console]::SetCursorPosition(0, [Console]::WindowTop)
+        $script:MugOn = $true
+        Write-Mug 0 0 ''
+    } catch { $script:MugOn = $false }
+}
+function Get-BeerColor([string]$name) { return [System.ConsoleColor]$name }
 function Write-Mug([double]$frac, [int]$tick, [string]$label) {
+    if (-not $script:MugOn) { return }
     if ($frac -lt 0) { $frac = 0 }; if ($frac -gt 1) { $frac = 1 }
     $H = $script:MugH; $W = $script:MugW
     $fill  = [int][Math]::Round($H * $frac)
     $beer  = [string][char]0x2588
+    $shine = [string][char]0x2593
     $foamC = [string](@([char]0x2592, [char]0x2591)[$tick % 2])
-    # each line = array of (text, color) pairs; ArrayList.Add keeps the nesting PowerShell would otherwise flatten
-    $lines = New-Object System.Collections.ArrayList
-    if ($fill -ge $H) { [void]$lines.Add(@(,@(('  ' + ($foamC * ($W + 2)) + ' '), 'White'))) }
-    else              { [void]$lines.Add(@(,@((' ' * ($W + 5)), 'Gray'))) }
+    $hline = [string][char]0x2500
+    # each line = array of (text, color) pairs; ArrayList.Add keeps the nesting PowerShell would flatten
+    $art = New-Object System.Collections.ArrayList
+    if ($fill -ge $H) {
+        $head = @('.-', "'-")[$tick % 2]
+        [void]$art.Add(@(,@(("  " + $head + ('~' * $W) + "-." + '   '), 'White')))
+    } else {
+        [void]$art.Add(@(,@((' ' * ($W + 9)), 'Gray')))
+    }
     for ($i = 1; $i -le $H; $i++) {
         $fromBottom = $H - $i + 1
-        $segs = @(,@('|', 'Gray'))
+        $segs = @(,@('  |', 'Gray'))
         if ($fromBottom -le $fill) {
+            $segs += ,@($shine, 'Yellow')                     # glass reflection
+            $body = $W - 1
             if ($tick -gt 0 -and (($i + $tick) % 3) -eq 0) {
-                $pos = ($tick * 7 + $i * 5) % $W
-                $segs += ,@(($beer * $pos), 'DarkYellow'); $segs += ,@('o', 'Yellow'); $segs += ,@(($beer * ($W - $pos - 1)), 'DarkYellow')
-            } else { $segs += ,@(($beer * $W), 'DarkYellow') }
+                $pos = ($tick * 7 + $i * 5) % $body
+                $segs += ,@(($beer * $pos), 'DarkYellow'); $segs += ,@('o', 'Yellow'); $segs += ,@(($beer * ($body - $pos - 1)), 'DarkYellow')
+            } else { $segs += ,@(($beer * $body), 'DarkYellow') }
         } elseif ($fill -gt 0 -and $fromBottom -eq ($fill + 1)) { $segs += ,@(($foamC * $W), 'White') }
         else { $segs += ,@((' ' * $W), 'Gray') }
         $segs += ,@('|', 'Gray')
-        switch ($i) { 2 { $segs += ,@('--.', 'Gray') } 3 { $segs += ,@('  |', 'Gray') } 4 { $segs += ,@("--'", 'Gray') } default { $segs += ,@('   ', 'Gray') } }
-        [void]$lines.Add($segs)
+        switch ($i) {
+            2 { $segs += ,@('___ ', 'Gray') }
+            3 { $segs += ,@('   \', 'Gray') }
+            4 { $segs += ,@('   |', 'Gray') }
+            5 { $segs += ,@('___/', 'Gray') }
+            default { $segs += ,@('    ', 'Gray') }
+        }
+        [void]$art.Add($segs)
     }
-    [void]$lines.Add(@(,@(("'" + ('-' * $W) + "'   "), 'Gray')))
-    [void]$lines.Add(@(,@(((("{0,3}% {1}" -f [int](100 * $frac), $label)).PadRight($W + 5).Substring(0, $W + 5)), 'Yellow')))
+    [void]$art.Add(@(,@(("  '" + ('-' * $W) + "'    "), 'Gray')))
+    $pct = [int](100 * $frac)
+    [void]$art.Add(@(,@((("  {0,3}% full" -f $pct)).PadRight($W + 9), 'Yellow')))
+    # text block to the right of the mug
+    $elapsed = [TimeSpan]::FromSeconds([int]($tick * 0.4)).ToString('mm\:ss')
+    $stepTxt = if ($script:BeerStep -gt 0) { "step {0}/{1}  {2}" -f $script:BeerStep, $script:BeerTotal, $label } else { 'starting...' }
+    $stateTxt = if ($tick -gt 0) { "pouring... $elapsed" } elseif ($frac -ge 1) { 'cheers!' } else { '' }
+    $info = @(('', 'Gray'), ($script:BeerTitle, 'Cyan'), ($stepTxt, 'Yellow'), ($stateTxt, 'DarkYellow'))
     try {
-        $winW = [Console]::WindowWidth
-        $col  = $winW - ($W + 6)
-        if ($col -lt 40) { return }               # console too narrow - skip the mug rather than clobber the log
-        $top  = [Console]::WindowTop + 1
+        $winW  = [Console]::WindowWidth
+        $top0  = [Console]::WindowTop + [Console]::WindowHeight - $script:PanelRows   # first panel row (buffer coords)
         $cl = [Console]::CursorLeft; $ct = [Console]::CursorTop
         $fg = [Console]::ForegroundColor
-        # wipe the old position if the window has scrolled since the last draw
-        if ($script:MugRows.Count -gt 0 -and ($script:MugRows[0] -ne $top -or $script:MugCol -ne $col)) {
-            foreach ($r in $script:MugRows) {
-                if ($r -ge [Console]::WindowTop -and $r -lt ([Console]::WindowTop + [Console]::WindowHeight)) {
-                    [Console]::SetCursorPosition($script:MugCol, $r); [Console]::Write(' ' * ($W + 5))
-                }
-            }
+        # separator
+        [Console]::SetCursorPosition(0, $top0)
+        [Console]::ForegroundColor = 'DarkGray'
+        [Console]::Write($hline * ($winW - 1))
+        for ($n = 0; $n -lt $art.Count; $n++) {
+            [Console]::SetCursorPosition(0, $top0 + 1 + $n)
+            foreach ($seg in $art[$n]) { [Console]::ForegroundColor = $seg[1]; [Console]::Write($seg[0]) }
+            $col = $script:MugW + 12
+            $txt = ''
+            $clr = 'Gray'
+            if ($n -ge 1 -and $n -le $info.Count) { $txt = [string]$info[$n - 1][0]; $clr = $info[$n - 1][1] }
+            [Console]::SetCursorPosition($col, $top0 + 1 + $n)
+            [Console]::ForegroundColor = $clr
+            $room = $winW - $col - 1
+            if ($txt.Length -gt $room) { $txt = $txt.Substring(0, $room) }
+            [Console]::Write($txt.PadRight($room))
         }
-        $rows = @()
-        for ($n = 0; $n -lt $lines.Count; $n++) {
-            $r = $top + $n
-            if ($r -ge [Console]::BufferHeight) { break }
-            [Console]::SetCursorPosition($col, $r)
-            foreach ($seg in $lines[$n]) { [Console]::ForegroundColor = $seg[1]; [Console]::Write($seg[0]) }
-            $rows += $r
-        }
-        $script:MugRows = $rows; $script:MugCol = $col
         [Console]::ForegroundColor = $fg
         [Console]::SetCursorPosition($cl, $ct)
     } catch { }
@@ -66,7 +119,7 @@ function Write-Mug([double]$frac, [int]$tick, [string]$label) {
 function Show-Beer([string]$label) {
     # call at the start of each step: the mug shows the level reached so far
     $script:BeerStep++
-    Write-Mug (($script:BeerStep - 1) / $script:BeerTotal) 0 ("{0}/{1} {2}" -f $script:BeerStep, $script:BeerTotal, $label)
+    Write-Mug (($script:BeerStep - 1) / $script:BeerTotal) 0 $label
 }
 function Wait-Beer($proc, [string]$label) {
     # pour while $proc runs; returns its exit code
@@ -83,6 +136,31 @@ function Wait-Beer($proc, [string]$label) {
     if ($proc) { try { return $proc.ExitCode } catch { return $null } }
     return $null
 }
+function Read-Beer([string]$prompt) {
+    # Read-Host inside the scroll region: conhost can leave the cursor one row below the region
+    # afterwards, so pull it back and repaint the panel.
+    $ans = Read-Host $prompt
+    if ($script:MugOn) {
+        try {
+            $bottomIdx = [Console]::WindowTop + [Console]::WindowHeight - $script:PanelRows - 1   # last text row (buffer)
+            if ([Console]::CursorTop -gt $bottomIdx) {
+                [Console]::SetCursorPosition(0, $bottomIdx)
+                [Console]::Write("`n")
+            }
+        } catch { }
+        Write-Mug (($script:BeerStep - 1) / $script:BeerTotal) 0 ''
+    }
+    return $ans
+}
 function Finish-Beer([string]$label) {
+    if (-not $script:MugOn) { return }
+    $script:BeerStep = $script:BeerTotal
     Write-Mug 1 1 $label
+    try {
+        # release the scroll region and park the cursor under the panel so the prompt/next output starts clean
+        [Console]::Write($script:ESC + '[r')
+        [Console]::SetCursorPosition(0, [Console]::WindowTop + [Console]::WindowHeight - 1)
+        [Console]::Write("`n")
+    } catch { }
+    $script:MugOn = $false
 }

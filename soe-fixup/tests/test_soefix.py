@@ -257,7 +257,10 @@ def test_soe_scripts_have_beer_progress():
     for mode, total in (("convert", 7), ("cleanup", 5)):
         s = soefix.bake_soe(mode, INFO, "X", "10.56.27.93")
         assert "function Show-Beer" in s and "function Wait-Beer" in s and "Finish-Beer" in s and "function Write-Mug" in s
-        assert f"$script:BeerTotal = {total}" in s
+        assert f'" {total}   #' in s and "Init-Beer" in s
+        # every pause goes through Read-Beer (scroll-region safe); the partial itself holds the only Read-Host
+        calls = [l for l in s.splitlines() if "Read-Host" in l and not l.strip().startswith("#")]
+        assert len(calls) == 1 and "$ans = Read-Host $prompt" in calls[0], calls
         assert s.count("Show-Beer '") == total, mode
         assert "{{" not in s and s.isascii()          # block chars come from [char] codes
 

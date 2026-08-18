@@ -19,7 +19,7 @@ if (-not $isAdmin) {
         Write-Host ("  admin group member: {0}" -f (($id.Groups | ForEach-Object { $_.Value }) -contains 'S-1-5-32-544')) -ForegroundColor Red
         Write-Host '  Log in as a local Administrator, or right-click PowerShell > Run as administrator and run:' -ForegroundColor Yellow
         Write-Host ("  powershell -NoProfile -ExecutionPolicy Bypass -File ""{0}""" -f $MyInvocation.MyCommand.Path) -ForegroundColor Yellow
-        Read-Host 'Press Enter to close'
+        Read-Beer 'Press Enter to close' | Out-Null
         exit 1
     }
     $env:SOEFIX_ELEVATED = '1'
@@ -29,7 +29,7 @@ if (-not $isAdmin) {
 try { Start-Transcript -Path 'C:\Temp\soefix\transcript.txt' -Append | Out-Null } catch { }
 
 {{BEER}}
-$script:BeerTotal = 5   # desktop exe, PLS, Java, generatekvs + recollect, summary
+Init-Beer "SOE cleanup - site $site $siteName" 5   # desktop exe, PLS, Java, generatekvs + recollect, summary
 
 Write-Host ''
 Write-Host ("SOE fixup - site $site $siteName (ref $refId) - recollect $days days") -ForegroundColor Cyan

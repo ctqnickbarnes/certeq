@@ -20,7 +20,7 @@ if (-not $isAdmin) {
         Write-Host ("  admin group member: {0}" -f (($id.Groups | ForEach-Object { $_.Value }) -contains 'S-1-5-32-544')) -ForegroundColor Red
         Write-Host '  Log in as a local Administrator, or right-click PowerShell > Run as administrator and run:' -ForegroundColor Yellow
         Write-Host ("  powershell -NoProfile -ExecutionPolicy Bypass -File ""{0}""" -f $MyInvocation.MyCommand.Path) -ForegroundColor Yellow
-        Read-Host 'Press Enter to close'
+        Read-Beer 'Press Enter to close' | Out-Null
         exit 1
     }
     $env:SOEFIX_ELEVATED = '1'
@@ -30,7 +30,7 @@ if (-not $isAdmin) {
 try { Start-Transcript -Path (Join-Path $here 'transcript.txt') -Append | Out-Null } catch { }
 
 {{BEER}}
-$script:BeerTotal = 7   # Maxtel, driver, desktop exe, PLS, Java, generatekvs, summary
+Init-Beer "SOE convert - site $site $siteName" 7   # Maxtel, driver, desktop exe, PLS, Java, generatekvs, summary
 
 Write-Host ''
 Write-Host "SOE convert - site $site $siteName (ref $refId) - $env:COMPUTERNAME - $env:USERNAME" -ForegroundColor Cyan
@@ -76,7 +76,7 @@ if (-not $driver) {
                     Write-Host ''
                     Write-Host "Driver packages in $dd (self-extracting):" -ForegroundColor Cyan
                     for ($i = 0; $i -lt $exes.Count; $i++) { Write-Host ("  [{0}] {1}" -f ($i + 1), $exes[$i].Name) }
-                    $ans = Read-Host 'Which to run? number, comma-separated for several (Enter = 1)'
+                    $ans = Read-Beer 'Which to run? number, comma-separated for several (Enter = 1)'
                     if ($ans -and $ans.Trim()) {
                         $pick = @()
                         foreach ($n in ($ans -split '[,\s]+')) {
@@ -115,7 +115,7 @@ if (-not $driver) {
             $infs = @($infs) + @(Get-ChildItem $dd -Filter '*.inf' -Recurse -ErrorAction SilentlyContinue | Sort-Object Name)
             $infs = @($infs | Sort-Object FullName -Unique | Sort-Object Name)
             if ($infs.Count -eq 0) {
-                $ans = Read-Host "No .inf found under $dd - folder where the package extracted (Enter to skip)"
+                $ans = Read-Beer "No .inf found under $dd - folder where the package extracted (Enter to skip)"
                 if ($ans -and (Test-Path $ans)) { $infs = @(Get-ChildItem $ans -Filter '*.inf' -Recurse -ErrorAction SilentlyContinue | Sort-Object Name) }
             }
         }
@@ -150,7 +150,7 @@ if ($inf) {
     Write-Host '   2. In printui: Drivers > Add > x64 > Have Disk > the extracted .inf > model.' -ForegroundColor Yellow
 }
 Write-Host 'Pick the printer model, finish, confirm the driver is listed. Do NOT create a printer.' -ForegroundColor Yellow
-Read-Host 'Press Enter here once the driver is listed'
+Read-Beer 'Press Enter here once the driver is listed' | Out-Null
 if ($inf) { $lines += "[INFO] Driver:        Add Driver done by hand from $($inf.FullName)" }
 else      { $lines += "[INFO] Driver:        done by hand ($driverNote)" }
 
