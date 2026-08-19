@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<EBOSDATA xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" TYPE="MYREST" DATE_FORMAT="YYYYMMDD">
+  <HEADER COUNTRY="AU" STORENUMBER="02074" />
+  <CalendarChange date="20260819">
+    <weather />
+    <tradinghours StoreOpen="true" is24hours="false" OpenTime="00:00" CloseTime="21:00" />
+    <comments />
+  </CalendarChange>
+</EBOSDATA>
