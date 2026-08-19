@@ -6,7 +6,7 @@
 """soefix - bake per-store SOE payloads onto the clipboard (cleanup pass + checks).
 
 Conversions of NEW stores are no longer done from here: the SME runs
-rhs-vm-config/SOE_Convert_2022.ps1 on RHS02 (Provisioning Tool) and it does the lot.
+rhs-vm-config/AUSetup_RHS_SOE_VM_Config_2022.ps1 (v1.03) on RHS02 (Provisioning Tool) and it does the lot.
 
 Everything is derived from the site number N: RHS02 = 10.56.N.93, VM SOE = 10.56.N.1.
 
@@ -382,7 +382,7 @@ def main() -> None:
     elif cmd == "log":
         cmd_log(args)
     elif cmd in ("restore", "convert") or (cmd == "push" and driver):
-        die("conversions of new stores are run on RHS02 by rhs-vm-config/SOE_Convert_2022.ps1 (Provisioning Tool) - "
+        die("conversions of new stores are run on RHS02 by rhs-vm-config/AUSetup_RHS_SOE_VM_Config_2022.ps1 v1.03 (Provisioning Tool) - "
             "soefix only does the cleanup pass: soefix push N")
     elif cmd == "push":
         cmd_push(site_arg(), name, force)

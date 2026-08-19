@@ -6,7 +6,7 @@ to the store's RHS02. Everything is derived from the **site number N**: RHS02 = 
 VM SOE = `10.56.N.1` (`--ip` once for sites whose third octet isn't the site number).
 
 **Conversions of new stores are not done from here any more** - the SME runs
-[`../rhs-vm-config/SOE_Convert_2022.ps1`](../rhs-vm-config/README.md) on RHS02 from the
+[`../rhs-vm-config/AUSetup_RHS_SOE_VM_Config_2022.ps1` (v1.03)](../rhs-vm-config/README.md) on RHS02 from the
 Provisioning Tool and it does the whole thing in one run.
 
 VMConnect *types* pasted text into the SOE, so the SOE never receives a script by paste:
@@ -85,7 +85,7 @@ Nothing in the payloads cares who drives them; only the generator side differs.
 - `templates/push.ps1`, `verify.ps1`, `tidy.ps1` - RHS02 payloads (`& { }`, paste); `_connect.ps1`, `_beer.ps1` shared partials
 - `templates/cleanup.ps1`, `go.cmd` - written onto the SOE by push
 - `tests/` - `uv run pytest` (generator tests, real PowerShell parse check of every baked
-  payload and of `../rhs-vm-config/SOE_Convert_2022.ps1` via `pwsh`: `brew install powershell` /
+  payload and of `../rhs-vm-config/AUSetup_RHS_SOE_VM_Config_2022.ps1` via `pwsh`: `brew install powershell` /
   `winget install Microsoft.PowerShell`)
 - `pyproject.toml` / `uv.lock` - dev deps for the tests
 
