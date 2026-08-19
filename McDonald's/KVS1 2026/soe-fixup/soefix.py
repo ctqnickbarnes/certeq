@@ -3,24 +3,25 @@
 # requires-python = ">=3.11"
 # dependencies = ["openpyxl", "pyperclip"]
 # ///
-"""soefix - bake per-store SOE payloads onto the clipboard.
+"""soefix - bake per-store SOE payloads onto the clipboard (cleanup pass + checks).
+
+Conversions of NEW stores are no longer done from here: the SME runs
+rhs-vm-config/SOE_Convert_2022.ps1 on RHS02 (Provisioning Tool) and it does the lot.
 
 Everything is derived from the site number N: RHS02 = 10.56.N.93, VM SOE = 10.56.N.1.
 
 Paste on RHS02 (the PSM session):
-  soefix restore N                     copy X:\\SOE_Backup, run the Server2022 restore, list drivers
-  soefix push N --driver "<folder>"    stage convert.ps1 + Maxtel + driver + generatekvs/JRE onto the SOE
-                                       (<folder> = name under X:\\Certeq, e.g. "Printer Drivers\\Epson", or a full X:\\ path)
-  soefix push N --cleanup              stage cleanup.ps1 (+ generatekvs) on an already-converted SOE
-  soefix verify N                      post-reboot checks over c$, pull the summary back to the Mac
+  soefix push N                        stage cleanup.ps1 (+ 2025 generatekvs.exe) on an already-converted SOE:
+                                       desktop exe, PLS, Java, generatekvs check + recollect /auto <days from the sheet>
+  soefix verify N                      post-run checks over c$, pull the summary back to the Mac
   soefix tidy N                        last step: remove soefix's own files from the SOE (scripts, logs, .bak)
 
 Type on the SOE (Win+R):   C:\\Temp\\soefix\\go
 
-ac:
+Mac:
   soefix log N                         ingest SOE_Static_Files/soefix-logs/N.txt into results.log
   soefix log N <note>                  manual entry;  soefix log  (no args) = clipboard mode
-  soefix list                          pending stores from the sheet with corrected day counts
+  soefix list                          pending stores + recollect backlog from the sheet
 
 Options: --name "Store Name" (when N is not in the sheet; remembered per site), --force (ignore Done in the sheet),
          --ip 10.56.55.1 (SOE address when the third octet is not the site number, e.g. sites > 255;
@@ -166,10 +167,6 @@ def remember(site: int, **kv: str) -> None:
         SITES.write_text(json.dumps(d, indent=2, sort_keys=True) + "\n")
 
 
-def driver_leaf(driver: str) -> str:
-    return driver.replace("/", "\\").rstrip("\\").split("\\")[-1] if driver else ""
-
-
 def derive(site: int) -> dict:
     ip = IP_OVERRIDE or _site_rec(site).get("ip")
     if ip:
@@ -204,27 +201,16 @@ def render(template: str, **vars: str) -> str:
     return text
 
 
-def bake_restore(site: int) -> str:
-    d = derive(site)
-    return render("restore.ps1", SITE=site, IP_SOE=d["ip_soe"])
-
-
 def bake_verify(site: int, name: str) -> str:
     d = derive(site)
     return render("verify.ps1", SITE=site, NAME=ps_quote(name), IP_SOE=d["ip_soe"], STATIC_UNC=ps_quote(STATIC_UNC))
 
 
-def bake_soe(mode: str, info: dict, driver: str, ip_rhs: str) -> str:
-    """Render the script that runs ON the SOE (convert.ps1 or cleanup.ps1)."""
-    common = dict(SITE=info["site"], NAME=ps_quote(info["name"]), REF=ps_quote(str(info["ref"])))
-    if mode == "convert":
-        # the SOE only ever sees C:\Temp\<leaf>, whatever form --driver took
-        return render("convert.ps1", DRIVER=ps_quote(driver_leaf(driver)), IP_RHS=ip_rhs, **common)
-    if mode == "cleanup":
-        if not isinstance(info["days"], (int, float)):
-            raise ValueError("cleanup mode needs a day count from the sheet (Days Since Completion is empty)")
-        return render("cleanup.ps1", DAYS=int(info["days"]), **common)
-    raise ValueError(f"unknown mode {mode!r}")
+def bake_soe(info: dict) -> str:
+    """Render cleanup.ps1 - the script that runs ON an already-converted SOE."""
+    if not isinstance(info["days"], (int, float)):
+        raise ValueError("cleanup needs a day count from the sheet (Days Since Completion is empty)")
+    return render("cleanup.ps1", SITE=info["site"], NAME=ps_quote(info["name"]), REF=ps_quote(str(info["ref"])), DAYS=int(info["days"]))
 
 
 def check_embeddable(script: str) -> None:
@@ -233,27 +219,24 @@ def check_embeddable(script: str) -> None:
             raise ValueError(f"embedded script line {i} starts with '@ - would terminate the here-string")
 
 
-def bake_push(site: int, driver: str, cleanup: bool, name: str | None, force: bool) -> str:
+def bake_push(site: int, name: str | None, force: bool) -> str:
+    """The cleanup push: cleanup.ps1 + go.cmd + 2025 generatekvs.exe onto an already-converted SOE."""
     info = store_info(site, name)
     d = derive(site)
-    mode = "cleanup" if cleanup else "convert"
-    if info["done"] and not force and not (cleanup and info["backlog"]):
+    if info["done"] and not force and not info["backlog"]:
         die(f"site {site} {info['name']} is marked Done in the sheet - use --force to push anyway")
-    soe_script = bake_soe(mode, info, driver, d["ip_rhs"])
+    soe_script = bake_soe(info)
     check_embeddable(soe_script)
-    if driver:
-        remember(site, driver=driver_leaf(driver))
-    script_name = f"{mode}.ps1"
-    go = render("go.cmd", SCRIPT=script_name)
+    go = render("go.cmd", SCRIPT="cleanup.ps1")
     return render(
         "push.ps1",
         SITE=site,
         NAME=ps_quote(info["name"]),
-        MODE=mode,
-        DRIVER=ps_quote(driver),
+        MODE="cleanup",
+        DRIVER="",
         IP_SOE=d["ip_soe"],
         STATIC_UNC=ps_quote(STATIC_UNC),
-        SCRIPT_NAME=script_name,
+        SCRIPT_NAME="cleanup.ps1",
         SOE_SCRIPT=soe_script,
         GO_CMD=go,
     )
@@ -274,27 +257,15 @@ def pbpaste() -> str:
 
 
 # --------------------------------------------------------------------------- commands
-def cmd_restore(site: int) -> None:
-    pbcopy(bake_restore(site))
-    print(f"restore payload for site {site} on clipboard (RHS02 = {derive(site)['ip_rhs']}).")
-    print("Paste into a normal PowerShell on RHS02 (X: must be visible). It copies X:\\SOE_Backup, runs the restore")
-    print("(~10 min, don't interrupt), then lists the X:\\Certeq driver folders for `soefix push --driver`.")
-
-
-def cmd_push(site: int, driver: str, cleanup: bool, name: str | None, force: bool) -> None:
-    payload = bake_push(site, driver, cleanup, name, force)
+def cmd_push(site: int, name: str | None, force: bool) -> None:
+    payload = bake_push(site, name, force)
     pbcopy(payload)
     info = store_info(site, name)
     d = derive(site)
-    mode = "cleanup" if cleanup else "convert"
-    print(f"push payload ({mode}) for site {site} {info['name']} on clipboard - SOE = {d['ip_soe']} ({len(payload) // 1024} KB).")
-    if mode == "convert" and not driver:
-        print("note: no --driver given - the SOE script will pause for you to copy the driver folder and add it by hand.")
-    if mode == "cleanup":
-        why = " (sheet: recollect not run on the 13/08 pass)" if info["backlog"] else ""
-        print(f"cleanup will recollect with generatekvs.exe /auto {int(info['days'])}{why}.")
-    print("Paste into PowerShell on RHS02 (VM must be up, you logged in as Administrator on it).")
-    print("Then on the SOE:  Win+R  ->  C:\\Temp\\soefix\\go")
+    print(f"cleanup push for site {site} {info['name']} on clipboard - SOE = {d['ip_soe']} ({len(payload) // 1024} KB).")
+    why = " (sheet: recollect not run on the 13/08 pass)" if info["backlog"] else ""
+    print(f"cleanup will recollect with generatekvs.exe /auto {int(info['days'])}{why}.")
+    print("Paste into PowerShell on RHS02. Then on the SOE:  Win+R  ->  C:\\Temp\\soefix\\go")
 
 
 def cmd_verify(site: int, name: str | None) -> None:
@@ -373,7 +344,7 @@ def cmd_log(args: list[str]) -> None:
 def main() -> None:
     argv = sys.argv[1:]
     force = "--force" in argv
-    cleanup = "--cleanup" in argv
+    cleanup = "--cleanup" in argv   # accepted for compatibility; push is always the cleanup pass now
     driver = ""
     name = None
     rest = []
@@ -410,16 +381,17 @@ def main() -> None:
         cmd_list()
     elif cmd == "log":
         cmd_log(args)
-    elif cmd == "restore":
-        cmd_restore(site_arg())
+    elif cmd in ("restore", "convert") or (cmd == "push" and driver):
+        die("conversions of new stores are run on RHS02 by rhs-vm-config/SOE_Convert_2022.ps1 (Provisioning Tool) - "
+            "soefix only does the cleanup pass: soefix push N")
     elif cmd == "push":
-        cmd_push(site_arg(), driver, cleanup, name, force)
+        cmd_push(site_arg(), name, force)
     elif cmd == "verify":
         cmd_verify(site_arg(), name)
     elif cmd == "tidy":
         cmd_tidy(site_arg(), name)
     elif cmd.isdigit():
-        die(f"the one-paste cleanup is gone - use:  soefix push {cmd} --cleanup   (or restore/push/verify for a conversion)")
+        die(f"use:  soefix push {cmd}   (cleanup pass), then verify / tidy / log")
     else:
         die(f"unknown command {cmd!r}\n\n{__doc__.strip()}")
 
