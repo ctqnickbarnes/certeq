@@ -29,6 +29,11 @@ COMPLETION_FIELDS = ("Ref_ID", "Site_ID", "Site_Name", "whatsapp_hypersupport", 
 
 
 def build_email(command: str, site_id: str | None) -> tuple:
+    subject, to, cc, html, wants_signature = _build(command, site_id)
+    return subject, to, cc, templates.outlook_fonts(html), wants_signature
+
+
+def _build(command: str, site_id: str | None) -> tuple:
     report_id = COMMANDS[command][1]
 
     if command == "report":

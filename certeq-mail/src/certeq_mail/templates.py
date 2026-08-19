@@ -4,16 +4,31 @@ Each builder returns (subject, to, cc, html, wants_signature). Body text and
 recipient lists are kept identical to the VBA originals.
 """
 
+import re
 from datetime import datetime
 
-FONT = '<font face="Calibri" size="2" color="black">'
-FONT_LARGE = '<font face="Calibri" size="4" color="black">'
+# Calibri 10pt, matching what Outlook itself emits for these emails.
+FONT_CSS = 'font-family:Calibri,sans-serif;font-size:10.0pt;color:black'
+FONT = f'<span style="{FONT_CSS}">'
+FONT_LARGE = FONT.replace("10.0pt", "14.0pt")
 
 TD = '<td style="padding-left:10px;">'
 CELL_STYLE = (
     "border-color:#5b9bd5;border-left-style:solid;border-width:1px;"
     "padding-left:10px;padding-right:10px"
 )
+
+
+def outlook_fonts(html: str) -> str:
+    """Pin Calibri on every block element.
+
+    Outlook (Word/WebKit) resets the font at <ul>, <li>, <table>, <td> and <th>
+    boundaries, so an inline font at the top of the body doesn't carry into
+    lists or tables — they'd render in Times New Roman.
+    """
+    html = re.sub(r"<(ul|li|table|td|th)>", rf'<\1 style="{FONT_CSS}">', html)
+    html = re.sub(r'<(td|th) style="', rf'<\1 style="{FONT_CSS};', html)
+    return f'<div style="{FONT_CSS}">{html}</div>'
 
 
 def _details_table(pairs: list[tuple[str, str]]) -> str:
