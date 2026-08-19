@@ -21,7 +21,7 @@ wheels = [
 ]
 
 [[package]]
-name = "ksv1-calendar-fix"
+name = "kvs1-calendar-fix"
 version = "0.1.0"
 source = { virtual = "." }
 

@@ -5,8 +5,9 @@ with its own README and `uv` environment.
 
 | Project | What it does |
 |---|---|
-| [`McDonald's/KVS1 2026/rhs-vm-config/`](McDonald's/KVS1%202026/rhs-vm-config/) | PowerShell run on a store's RHS02 by the Provisioning Tool: the AUSetup VM-config scripts; the SOE one (v1.03) creates the VM and then does the whole conversion in one run. |
-| [`McDonald's/KVS1 2026/soe-fixup/`](McDonald's/KVS1%202026/soe-fixup/) | Mac/Windows helper for the cleanup pass on already-converted VM SOEs (recollect with the 2025 generatekvs) via CyberArk PSM: bakes the RHS02 payloads, verify/tidy, pulls summaries back. |
+| [`mcdonalds/kvs1-2026/rhs-vm-config/`](mcdonalds/kvs1-2026/rhs-vm-config/) | PowerShell run on a store's RHS02 by the Provisioning Tool: the AUSetup VM-config scripts; the SOE one (v1.03) creates the VM and then does the whole conversion in one run. |
+| [`mcdonalds/kvs1-2026/soe-fixup/`](mcdonalds/kvs1-2026/soe-fixup/) | Mac/Windows helper for the cleanup pass on already-converted VM SOEs (recollect with the 2025 generatekvs) via CyberArk PSM: bakes the RHS02 payloads, verify/tidy, pulls summaries back. |
+| [`mcdonalds/kvs1-2026/kvs1-calendar-fix/`](mcdonalds/kvs1-2026/kvs1-calendar-fix/) | PowerShell run on the live SOE on a conversion night: forces the MyRestaurant close-time change into eBOS (wake the myRestaurant Client service, or inject the calendar XML), then runs the AS400 import. |
 | [`certeq-mail/`](certeq-mail/) | Mac port of the Outlook VBA macro suite: pulls site data from the Certeq portal API and opens the templated KVS1 deployment emails as drafts in Outlook. |
 
 ## Conventions

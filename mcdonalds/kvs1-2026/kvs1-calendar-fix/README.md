@@ -1,4 +1,4 @@
-# ksv1-calendar-fix
+# kvs1-calendar-fix
 
 On a KVS1 conversion night the store must close early in eBOS (e.g. 21:00, not 24 h) so the
 day-close can run before the conversion. The manager sets it in MyRestaurant, but since
