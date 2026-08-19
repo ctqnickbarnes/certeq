@@ -1,5 +1,5 @@
 [project]
-name = "ksv1-calendar-fix"
+name = "kvs1-calendar-fix"
 version = "0.1.0"
 description = "KVS1 conversion night: force the MyRestaurant close time into eBOS on the live SOE"
 requires-python = ">=3.11"
