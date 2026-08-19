@@ -5,12 +5,12 @@ PowerShell run on the store's RHS02 (Hyper-V host) by the McDonald's Provisionin
 | Script | Who runs it | What it does |
 |---|---|---|
 | `AUSetup_RHS_VM_Config_2022.ps1` | SME (Provisioning Tool) | Creates the "Server 2022 GSC" VM from the image (store controller). |
-| `AUSetup_RHS_SOE_VM_Config_2022.ps1` | SME (Provisioning Tool) | Creates the "Server 2022 SOE" VM from the image and starts it. **Step 0 of a conversion.** |
-| `SOE_Convert_2022.ps1` | SME clicks Run, tech at RHS02 | The rest of the conversion in one run (below). |
+| `AUSetup_RHS_SOE_VM_Config_2022.ps1` | SME clicks Run, tech at RHS02 | v1.02: creates the "Server 2022 SOE" VM from the image and starts it. **v1.03: then carries on and does the whole conversion in the same run** (below). `-NoConvert` = the old behaviour. |
 
-## SOE_Convert_2022.ps1
+## AUSetup_RHS_SOE_VM_Config_2022.ps1 v1.03 - the conversion part
 
-Derives everything from the RHS02 itself - site from the hostname (`NZ00443RHS02` -> 443),
+After the unchanged VM-creation part (if the VM already existed it asks before continuing),
+the script derives everything from the RHS02 itself - site from the hostname (`NZ00443RHS02` -> 443),
 SOE IP from this box's `10.56.x.93` -> `10.56.x.1`, driver folder `X:\Certeq\Printer Drivers`,
 static files from `C:\Configuration\Provisioning\Appstore\SOE_Static_Files` (or
 `X:\Certeq\SOE_Static_Files`, or a tech's `\\tsclient` drive). Prompts once for the VM SOE
@@ -34,10 +34,11 @@ Phases (a `[PASS]/[FAIL]` line each, mug progress panel, log in the Provisioning
    `X:\Certeq\soefix-logs\<site>.txt` (and the tech's `\\tsclient\...\soefix-logs` if present)
 
 Then by hand: thin-client USB printer (driver from `\\10.56.x.1\c$\Temp\Printer Drivers`), test
-pages, SME sign-off. Options: `-Site`, `-SoeIp`, `-VMName`, `-DriverDir`, `-SkipRestore`, `-NoBeer`.
+pages, SME sign-off. Options: `-Site`, `-SoeIp`, `-DriverDir`, `-SkipRestore`, `-NoBeer`, `-NoConvert`.
 
-Deploy: this file + `SOE_Static_Files\` (generatekvs.exe 2025, jre-7u1-windows-x64.exe) into
-`C:\Configuration\Provisioning\Appstore` on each RHS02. Test on one store first.
+Deploy: this file replaces the v1.02 one in `C:\Configuration\Provisioning\Appstore` on each
+RHS02, plus `SOE_Static_Files\` (generatekvs.exe 2025, jre-7u1-windows-x64.exe) next to it.
+Test on one store first. File stays UTF-8 BOM + CRLF like the other AUSetup scripts.
 
 The progress-panel block inside the script is a verbatim copy of
 `../soe-fixup/templates/_beer.ps1`; `soe-fixup`'s tests fail if the two drift.

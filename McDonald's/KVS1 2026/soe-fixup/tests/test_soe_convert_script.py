@@ -1,5 +1,6 @@
-"""The standalone RHS02 conversion script (rhs-vm-config/SOE_Convert_2022.ps1): deployed to
-every RHS02 and run by the Provisioning Tool - hand-maintained, so these checks guard it."""
+"""rhs-vm-config/AUSetup_RHS_SOE_VM_Config_2022.ps1 v1.03: the SOE VM creation script the SME runs
+from the Provisioning Tool, now carrying the whole conversion. Deployed to every RHS02 and
+hand-maintained, so these checks guard it (UTF-8 BOM + CRLF like the other AUSetup scripts)."""
 import pathlib
 import re
 import shutil
@@ -8,25 +9,37 @@ import subprocess
 import pytest
 
 HERE = pathlib.Path(__file__).parents[1]
-SCRIPT = HERE.parent / "rhs-vm-config" / "SOE_Convert_2022.ps1"
+SCRIPT = HERE.parent / "rhs-vm-config" / "AUSetup_RHS_SOE_VM_Config_2022.ps1"
 BEER = HERE / "templates" / "_beer.ps1"
 PWSH = shutil.which("pwsh")
 
 
 def text() -> str:
-    return SCRIPT.read_text()
+    return SCRIPT.read_bytes().decode("utf-8-sig").replace("\r\n", "\n")
 
 
-def test_exists_and_ascii():
-    assert SCRIPT.exists()
+def test_exists_ascii_bom_crlf():
+    raw = SCRIPT.read_bytes()
+    assert raw.startswith(b"\xef\xbb\xbf") and b"\r\n" in raw and b"\n" not in raw.replace(b"\r\n", b"")
     assert text().isascii()
+
+
+def test_original_vm_creation_is_intact():
+    t = text()
+    for must in ('New-VM -Name $VMName -Generation 2 -SwitchName VLAN1', "Set-VMNetworkAdapterVlan -VMName $VMName -Access -VlanId 10",
+                 "Wait-VM -Name $VMName -For Heartbeat -Delay 120", "Write-Log 'VM already exists'", "# v1.02 17/12/2024", "# v1.03 19/08/2026"):
+        assert must in t, must
+    assert t.index("New-VM -Name") < t.index("# v1.03 - conversion")       # their part first, ours after
+    assert t.index("# --- self-elevate") < t.index("New-VM -Name")          # elevation before their New-VM
+    assert "[switch]$NoConvert" in t and "if ($NoConvert)" in t and "$vmExisted" in t
+    assert "SOE_Convert_2022.ps1" not in t
 
 
 def test_beer_block_is_verbatim_copy_of_the_template():
     t = text()
     m = re.search(r"# ---- begin: verbatim copy of soe-fixup/templates/_beer.ps1.*?\n(.*?)\n# ---- end: _beer.ps1 ----", t, re.S)
     assert m, "beer block markers missing"
-    assert m.group(1) == BEER.read_text().rstrip("\n"), "SOE_Convert_2022.ps1 beer block differs from templates/_beer.ps1 - copy it over"
+    assert m.group(1) == BEER.read_text().rstrip("\n"), "beer block differs from templates/_beer.ps1 - copy it over"
 
 
 def test_phase_structure():
