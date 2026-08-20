@@ -4,41 +4,34 @@ PowerShell run on the store's RHS02 (Hyper-V host) by the McDonald's Provisionin
 
 | Script | Who runs it | What it does |
 |---|---|---|
-| `AUSetup_RHS_VM_Config_2022.ps1` | SME (Provisioning Tool) | Creates the "Server 2022 GSC" VM from the image (store controller). |
-| `AUSetup_RHS_SOE_VM_Config_2022.ps1` | SME clicks Run, tech at RHS02 | v1.02: creates the "Server 2022 SOE" VM from the image and starts it. **v1.03: then carries on and does the whole conversion in the same run** (below). `-NoConvert` = the old behaviour. |
+| `AUSetup_RHS_VM_Config_2022.ps1` | SME (Provisioning Tool) | Creates the "Server 2022 GSC" VM from the image (store controller). Untouched reference - its mount-the-VHDX-and-copy approach is what v2.00 below follows. |
+| `AUSetup_RHS_SOE_VM_Config_2022.ps1` | SME (Provisioning Tool) | v2.00: creates the "Server 2022 SOE" VM from the image, **places the VM SOE package into the VHDs before first boot**, then starts it. |
 
-## AUSetup_RHS_SOE_VM_Config_2022.ps1 v1.03 - the conversion part
+## AUSetup_RHS_SOE_VM_Config_2022.ps1 v2.00
 
-After the unchanged VM-creation part (if the VM already existed it asks before continuing),
-the script derives everything from the RHS02 itself - site from the hostname (`NZ00443RHS02` -> 443),
-SOE IP from this box's `10.56.x.93` -> `10.56.x.1`, driver folder `X:\Certeq\Printer Drivers`,
-static files from `C:\Configuration\Provisioning\Appstore\SOE_Static_Files` (or
-`X:\Certeq\SOE_Static_Files`, or a tech's `\\tsclient` drive). Prompts once for the VM SOE
-local Administrator password. Talks to the VM over **PowerShell Direct** (Hyper-V VMBus,
-no network/WinRM/c$ needed); network remoting is the fallback.
+Per Nic Henstridge's Aug-2026 spec (Flow 36 for file locations). The v1.02 VM-creation
+code is unchanged. Before `Start-VM`, the script:
 
-Phases (a `[PASS]/[FAIL]` line each, mug progress panel, log in the Provisioning Tool `Logs\`):
+1. **Preflight** - checks every package item is in `C:\certeq` (pushed there by Lab SOE
+   script `7 - GSC02 Build Script v3`). Any missing item is named in the log and nothing
+   is touched.
+2. **OS disk** (`SOEOS.vhdx`, the VM's C:) - mounts it, sanity-checks `\Windows` is there,
+   then places `Helpdesk\tools\generatekvs.exe`, a spare `Source\Scripts\generatekvs.exe`
+   (staging can revert the Helpdesk copy - the cleanup script restores from the spare),
+   `Source\Scripts\NZ_VM_SOE_Clean_Up.ps1`, and `Temp\Printer Drivers\` when the package
+   carries it.
+3. **Data disk** (`SOEData.vhdx`, the VM's E:) - places `Ghost Images\Waystation\Tools\SOE_Reboot_eOPS.exe`,
+   `...\AppStore\Maxtel.ps1`, `...\AppStore\Maxtel\`, `...\AppStore\PLS\jre-7u1-windows-x64.exe`.
 
-1. Preflight - elevate, derive, X:, static files, VM exists, credential
-2. Restore - `X:\SOE_Backup` -> `C:\SOE_Backup`, `SOE_Server2022_Restore.exe` → **pause: screenshot**
-3. VM + wizard - starts the VM, opens VMConnect, prints the wizard values; **you do the wizard**;
-   it waits (up to 40 min) until the store user has auto-logged in and the guest has been up 2 min
-4. Push - Maxtel.ps1 + Maxtel\, driver folder, 2025 `generatekvs.exe` (old kept as .2015.bak), JRE if missing
-5. **Pause: driver** - sign out the store user, log in as Administrator, run the package in
-   `C:\Temp\Printer Drivers`, `printui /s /t2` > Drivers > Add > x64 > Have Disk > .inf > model
-6. SOE steps, unattended - Maxtel, `SOE_Reboot_eOPS.exe` into Tools / off desktops, PLS install
-   (crash dialog suppressed), Java 7u1, generatekvs 2025 check (no recollect)
-7. Restart + wait - reboots the VM, waits for it and for the `DT Ranking Reboot` GP shortcut
-   (one automatic extra restart if it doesn't appear), checks no real exe on desktops, ping
-8. Tidy + summary - removes its own files from the SOE, prints the summary, saves it to
-   `X:\Certeq\soefix-logs\<site>.txt` (and the tech's `\\tsclient\...\soefix-logs` if present)
+Destination folders are created as needed, every item is confirmed at its destination
+(a move - sources are consumed), and the VHDs are always dismounted. Any failure names
+the source and intended destination and **stops the script before the VM ever boots**;
+fix and re-run (a re-run with the VM off places the package and then starts the VM).
+No installers run here - that is `NZ_VM_SOE_Clean_Up.ps1` on the staged SOE
+(see `../vm-soe-files/`).
 
-Then by hand: thin-client USB printer (driver from `\\10.56.x.1\c$\Temp\Printer Drivers`), test
-pages, SME sign-off. Options: `-Site`, `-SoeIp`, `-DriverDir`, `-SkipRestore`, `-NoBeer`, `-NoConvert`.
+Logs to the Provisioning Tool `Logs\SOE_VM_Config.log` as before.
 
-Deploy: this file replaces the v1.02 one in `C:\Configuration\Provisioning\Appstore` on each
-RHS02, plus `SOE_Static_Files\` (generatekvs.exe 2025, jre-7u1-windows-x64.exe) next to it.
-Test on one store first. File stays UTF-8 BOM + CRLF like the other AUSetup scripts.
-
-The progress-panel block inside the script is a verbatim copy of
-`../soe-fixup/templates/_beer.ps1`; `soe-fixup`'s tests fail if the two drift.
+Deploy: replaces the v1.02 file in `C:\Configuration\Provisioning\Appstore` on each RHS02.
+Test on one store first. File stays UTF-8 BOM + CRLF like the other AUSetup scripts;
+`soe-fixup`'s tests (`test_vm_soe_scripts.py`) guard the structure.
