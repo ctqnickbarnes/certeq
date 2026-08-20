@@ -1,10 +1,11 @@
 '============================================================
 '
 ': Script: 2 - SOE Provisioning Files Back Up
-': Version: 11
-': Published: 19-Jul-26
+': Version: 12
+': Published: 20-Aug-26
 ': Author: Daniel Phillips (Certeq)
 ': Notes: Pulls provisioning files from the Waystation
+':        v12: DTR copy to RHS02 removed; FC / FC + DT expected sizes (Nick Barnes)
 '
 '============================================================
 
@@ -161,12 +162,6 @@ If oFSO.FileExists("H:\SOE_Backup\Desktop\StartDTBrowser - Shortcut.lnk") Then
 End If
 
 '================================
-' Copy DTR file to SOE Desktop
-'================================
-
-results.Add "Xdrive_dtr.exe", CopyFile("C:\Certeq\dtr\SOE_Reboot_eOPS.exe", "\\" & ipRHS02 & "\x$\SOE_Backup\Desktop\SOE_Reboot_eOPS.exe")
-
-'================================
 ' Copy RBT Files to Backup
 '================================
 
@@ -255,9 +250,8 @@ msg = "Store Details:" & vbNewLine & vbNewLine & _
         vbTab & "X drive_selections.exml:" & vbTab &  results("Xdrive_selections.exml") & vbNewLine & _
         vbTab & "X drive_selections.xml:" & vbTab &  results("Xdrive_selections.xml") & vbNewLine & vbNewLine & _   
         vbTab & "RTP Backup Size:" & vbTab & vbTab & "= " & rtpBackupSize & vbNewLine & _
-        vbTab & "Expected Size:" & vbTab & vbTab & "> 15.0 GB" & vbNewLine & vbNewLine & _
-		"RHS02 DTR Files:" & vbNewLine & vbNewLine & _
-        vbTab &  "Xdrive_dtr.exe:" & vbTab &  vbTab & results("Xdrive_dtr.exe") & vbNewLine & vbNewLine & _
+        vbTab & "Expected Size (FC):" & vbTab & vbTab & "~ 5 GB" & vbNewLine & _
+        vbTab & "Expected Size (FC + DT):" & vbTab & "~ 15 GB" & vbNewLine & vbNewLine & _
 		"RFM Package:" & vbNewLine & vbNewLine & _
         vbTab & "names-db.xml" & vbTab & vbTab & results("names-db.xml") & vbNewLine & _
         vbTab & "product-db.xml" & vbTab & vbTab & results("product-db.xml") & vbNewLine & _
@@ -272,7 +266,7 @@ msg = "Store Details:" & vbNewLine & vbNewLine & _
         vbTab & "product.specification" & vbTab & results("product.specification") & vbNewLine 
 
 
-MsgBox msg, 1, "Provisioning Files Download - v11"
+MsgBox msg, 1, "Provisioning Files Download - v12"
 
 '========================
 ' Copy Function
